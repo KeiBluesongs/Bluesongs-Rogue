@@ -35,10 +35,11 @@ h1{ margin:0 0 4px; font-size:18px; font-weight:700; letter-spacing:.2px; }
 }
 
 #hud{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px 12px;
+  display:grid;
+  grid-template-columns:auto auto auto 1fr;
+  gap:10px;
   align-items:center;
+  margin:10px 0 8px;
 }
 .pill{
   padding:6px 10px;
@@ -75,7 +76,7 @@ details#logDetails{
   overflow:hidden;
 }
 #logDetails[open] #log{
-  max-height:min(22svh, 220px);
+  max-height:min(16svh, 180px);
   overflow:auto;
 }
 
@@ -162,6 +163,27 @@ button:active{ transform:translateY(1px); }
   canvas{ max-height:52svh; }
   #log{ max-height:2.75em; } /* slightly shorter on mobile */
   #logDetails[open] #log{ max-height:18svh; }
+
+  /* --- iPhone/Small screen: lock viewport, respect safe areas, avoid scroll --- */
+  body{
+    position:fixed;
+    inset:0;
+    overflow:hidden;
+  }
+  #wrap{
+    height:100%;
+    padding:calc(env(safe-area-inset-top) + 10px)
+            calc(env(safe-area-inset-right) + 12px)
+            calc(env(safe-area-inset-bottom) + 14px)
+            calc(env(safe-area-inset-left) + 12px);
+    box-sizing:border-box;
+    overflow:hidden;
+  }
+  /* Swipe is primary on iPhone; hide D-pad to free space */
+  #dpad{ display:none !important; }
+  /* Make HUD pills a bit tighter so SEED fits on same row */
+  .pill{ padding:10px 12px; font-size:13px; }
+  #statSeed{ font-size:12px; padding:10px 12px; }
 }
 
 details#codeDetails{
