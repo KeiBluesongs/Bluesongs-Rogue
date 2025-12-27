@@ -12,6 +12,7 @@
     #top { display: grid; gap: 10px; grid-template-columns: 1fr; }
     #hud { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
     .pill { padding: 6px 10px; border-radius: 999px; background: #1a1c22; border: 1px solid #2a2d37; font-size: 13px; }
+    #statSeed{ max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #game { display: grid; gap: 10px; grid-template-columns: 1fr; }
     canvas { width: 100%; height: auto; max-width: 620px; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; touch-action: none; }
     #panel { display: grid; gap: 10px; grid-template-columns: 1fr; }
@@ -33,7 +34,7 @@
 
     /* Mobile: keep everything on one screen (no page scroll). Only log/code can scroll. */
     @media (max-width: 859px){
-      body{ height: 100svh; overflow: hidden; padding: 10px; }
+      body{ height: 100svh; overflow: hidden; padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); }
       #wrap{ height: 100%; display: flex; flex-direction: column; }
       #game{ flex: 1; display: flex; flex-direction: column; min-height: 0; }
       canvas{ width: 100%; max-width: none; aspect-ratio: 1 / 1; height: auto; max-height: 52svh; }
