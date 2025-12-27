@@ -429,24 +429,30 @@ function render(){
   }
 
   // glyph sizes (scale handled by transform)
-  ctx.font = `${Math.floor(py*0.78)}px sans-serif`;
+  const glyphSize = Math.floor(py * 0.90);
+  ctx.font = `${glyphSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const gx = (x) => x * px + px * 0.5;
+  const gy = (y) => y * py + py * 0.55; // slight downward tweak for emoji optical centering
 
   // exit
   if (state.revealed[state.exit.y][state.exit.x]){
     ctx.fillStyle = "#c9b458";
-    ctx.fillText("⏚", state.exit.x*px + px*0.25, state.exit.y*py + py*0.75);
+    ctx.fillText("⏚", gx(state.exit.x), gy(state.exit.y));
   }
 
   // enemies
   for (const e of state.enemies){
     if (!state.revealed[e.y][e.x]) continue;
     ctx.fillStyle = "#ff6b6b";
-    ctx.fillText("☠", e.x*px + px*0.25, e.y*py + py*0.75);
+    ctx.fillText("☠", gx(e.x), gy(e.y));
   }
 
   // player
   ctx.fillStyle = "#7bdff2";
-  ctx.fillText("☺", state.player.x*px + px*0.25, state.player.y*py + py*0.75);
+  ctx.fillText("☺", gx(state.player.x), gy(state.player.y));
 }
 
 
