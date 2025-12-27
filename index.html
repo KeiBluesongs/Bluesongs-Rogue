@@ -5,48 +5,214 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Bluesongs Rogue (Offline)</title>
   <style>
-    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif; }
-    body { margin: 0; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); background: #0e0f12; color: #e8e8e8; overscroll-behavior: none; }
-    h1 { margin: 0 0 8px; font-size: 18px; }
-    #wrap { display: grid; gap: 10px; grid-template-columns: 1fr; max-width: 980px; margin: 0 auto; }
-    #top { display: grid; gap: 10px; grid-template-columns: 1fr; }
-    #hud { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
-    .pill { padding: 6px 10px; border-radius: 999px; background: #1a1c22; border: 1px solid #2a2d37; font-size: 13px; }
-    #statSeed{ max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #game { display: grid; gap: 10px; grid-template-columns: 1fr; }
-    canvas { width: 100%; height: auto; max-width: 620px; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; touch-action: none; }
-    #panel { display: grid; gap: 10px; grid-template-columns: 1fr; }
-    #log { width: 100%; max-width: 100%; height: clamp(110px, 16svh, 150px); overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
-    button { background: #1e2230; color: #fff; border: 1px solid #2f3850; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
-    button:active { transform: translateY(1px); }
-    .row { display: flex; flex-wrap: wrap; gap: 8px; }
-    textarea { width: 100%; min-height: 92px; border-radius: 10px; border: 1px solid #2a2d37; background: #0f1116; color: #e8e8e8; padding: 10px; font-size: 12px; }
-    .hint { font-size: 12px; color: #b8bdc9; }
-    #dpad { display: grid; gap: 8px; grid-template-columns: 60px 60px 60px; align-items: center; justify-content: start; }
-    #dpad button { padding: 12px 0; }
-    #dpad .empty { visibility: hidden; }
-    @media (min-width: 860px){
-      #top { grid-template-columns: 640px 1fr; align-items: start; }
-      #game { grid-template-columns: 640px 1fr; }
-    }
-    /* Prevent iOS double-tap zoom & keep interactions snappy */
-    body, button, a, input, textarea { touch-action: manipulation; }
+:root{
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
+  --bg:#0e0f12; --panel:#12141a; --panel2:#1a1c22; --border:#2a2d37; --text:#e8e8e8;
+  --gap:10px;
+}
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  overscroll-behavior:none;
+  /* safe area padding */
+  padding:
+    calc(12px + env(safe-area-inset-top, 0px))
+    calc(16px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px))
+    calc(16px + env(safe-area-inset-left, 0px));
+}
+h1{ margin:0 0 4px; font-size:18px; font-weight:700; letter-spacing:.2px; }
 
-    /* Mobile: keep everything on one screen (no page scroll). Only log/code can scroll. */
-    @media (max-width: 859px){
-      body{ height: 100svh; overflow: hidden; padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); }
-      #wrap{ height: 100%; display: flex; flex-direction: column; }
-      #game{ flex: 1; display: flex; flex-direction: column; min-height: 0; }
-      canvas{ width: 100%; max-width: none; aspect-ratio: 1 / 1; height: auto; max-height: 52svh; }
-      #panel{ flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; }
-      #log{ flex: 0 0 auto; height: clamp(84px, 14svh, 120px); }
-      .row{ flex: 0 0 auto; }
-      #dpad{ display: none; }
-      #codeDetails{ display: block; }
-      textarea{ min-height: 72px; }
-    }
+#wrap{
+  max-width:980px;
+  margin:0 auto;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  gap:var(--gap);
+}
 
-      *, *::before, *::after { box-sizing: border-box; }
+#hud{
+  display:grid;
+  grid-template-columns:auto auto auto 1fr;
+  gap:10px;
+  align-items:center;
+  margin:10px 0 8px;
+}
+.pill{
+  padding:6px 10px;
+  border-radius:999px;
+  background:var(--panel2);
+  border:1px solid var(--border);
+  font-size:13px;
+}
+#statSeed{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+details#logDetails{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px;
+}
+#logDetails > summary{
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+  font-size:12px;
+  opacity:.85;
+}
+#logDetails > summary::-webkit-details-marker{ display:none; }
+#logDetails > summary::before{ content:"▶ "; }
+#logDetails[open] > summary::before{ content:"▼ "; }
+
+#log{
+  margin:6px 0 0;
+  white-space:pre-wrap;
+  font-size:13px;
+  line-height:1.35;
+  max-height:3.1em; /* ~2 lines (1.35*2=2.7) + a bit */
+  overflow:hidden;
+}
+#logDetails[open] #log{
+  max-height:min(16svh, 180px);
+  overflow:auto;
+}
+
+#game{
+  flex:1;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  gap:var(--gap);
+}
+#canvasWrap{
+  flex:1;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end; /* push canvas down for thumb reach */
+  flex-direction:column;
+}
+canvas{
+  width:100%;
+  height:auto;
+  aspect-ratio:1/1;
+  background:#0b0c10;
+  border:1px solid var(--border);
+  border-radius:10px;
+  touch-action:none; /* we handle swipe/pinch ourselves */
+  max-width:620px;
+  max-height:58svh;
+}
+
+#panel{
+  flex:0 0 auto;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.row{ display:flex; flex-wrap:wrap; gap:8px; }
+button{
+  background:#1e2230;
+  color:#fff;
+  border:1px solid #3a3f50;
+  border-radius:10px;
+  padding:10px 12px;
+  font-size:14px;
+}
+button:active{ transform:translateY(1px); }
+
+#helpToggle{
+  font-size:12px;
+  opacity:.8;
+  padding:0 2px;
+}
+#helpDetails{
+  background:transparent;
+  border:none;
+  padding:0;
+}
+#helpDetails summary{ list-style:none; cursor:pointer; user-select:none; }
+#helpDetails summary::-webkit-details-marker{ display:none; }
+#helpBox{
+  margin-top:6px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 12px;
+  font-size:13px;
+  line-height:1.35;
+}
+
+@media (max-width: 859px){
+  body{ height:100svh; overflow:hidden; }
+  h1{ font-size:20px; }
+  /* lock one screen */
+  #wrap{ height:100%; }
+  /* keep HUD in one row: 3 small + seed flexible */
+  #hud{
+    display:grid;
+    grid-template-columns:auto auto auto 1fr;
+    gap:8px;
+    align-items:center;
+  }
+  .pill{ font-size:13px; padding:7px 10px; }
+  #statSeed{ min-width:0; }
+  canvas{ max-height:52svh; }
+  #log{ max-height:2.75em; } /* slightly shorter on mobile */
+  #logDetails[open] #log{ max-height:18svh; }
+
+  /* --- iPhone/Small screen: lock viewport, respect safe areas, avoid scroll --- */
+  body{
+    position:fixed;
+    inset:0;
+    overflow:hidden;
+  }
+  #wrap{
+    height:100%;
+    padding:calc(env(safe-area-inset-top) + 10px)
+            calc(env(safe-area-inset-right) + 12px)
+            calc(env(safe-area-inset-bottom) + 14px)
+            calc(env(safe-area-inset-left) + 12px);
+    box-sizing:border-box;
+    overflow:hidden;
+  }
+  /* Swipe is primary on iPhone; hide D-pad to free space */
+  #dpad{ display:none !important; }
+  /* Make HUD pills a bit tighter so SEED fits on same row */
+  .pill{ padding:10px 12px; font-size:13px; }
+  #statSeed{ font-size:12px; padding:10px 12px; }
+}
+
+details#codeDetails{
+  background:transparent;
+  border:none;
+  padding:0;
+}
+#codeDetails summary.hint{
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+  font-size:12px;
+  opacity:.85;
+  padding:0 2px; /* keep away from rounded corners */
+}
+#codeDetails summary.hint::-webkit-details-marker{ display:none; }
+#codeDetails .hint{ padding:0 2px; }
+#codeBox{
+  width:100%;
+  min-height:78px;
+  resize:none;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 12px;
+  color:var(--text);
+  font-size:13px;
+  line-height:1.35;
+}
 </style>
 </head>
 <body>
@@ -59,10 +225,15 @@
       <div class="pill" id="statSeed">SEED: -</div>
     </div>
 
-    <div id="log"></div>
+    <details id="logDetails">
+      <summary id="logSummary">ログ（タップで開く）</summary>
+      <pre id="log">New run started.</pre>
+    </details>
 
     <div id="game">
-      <canvas id="cv" width="620" height="620" aria-label="game"></canvas>
+      <div id="canvasWrap">
+        <canvas id="cv" width="620" height="620" aria-label="game"></canvas>
+      </div>
 
       <div id="panel">
         <div class="row">
