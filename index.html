@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Bluesongs Rogue (Offline)</title>
   <style>
     :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif; }
@@ -15,7 +15,7 @@
     #game { display: grid; gap: 10px; grid-template-columns: 1fr; }
     canvas { width: 100%; height: auto; max-width: 620px; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; touch-action: none; }
     #panel { display: grid; gap: 10px; grid-template-columns: 1fr; }
-    #log { position: sticky; top: 0; z-index: 10; height: 140px; overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
+    #log { height: 160px; overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
     button { background: #1e2230; color: #fff; border: 1px solid #2f3850; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
     button:active { transform: translateY(1px); }
     .row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -24,14 +24,27 @@
     #dpad { display: grid; gap: 8px; grid-template-columns: 60px 60px 60px; align-items: center; justify-content: start; }
     #dpad button { padding: 12px 0; }
     #dpad .empty { visibility: hidden; }
-    
-    @media (max-width: 859px){
-      #log{ height: 120px; }
-    }
-@media (min-width: 860px){
+    @media (min-width: 860px){
       #top { grid-template-columns: 640px 1fr; align-items: start; }
       #game { grid-template-columns: 640px 1fr; }
     }
+    /* Prevent iOS double-tap zoom & keep interactions snappy */
+    body, button, a, input, textarea { touch-action: manipulation; }
+
+    /* Mobile: keep everything on one screen (no page scroll). Only log/code can scroll. */
+    @media (max-width: 859px){
+      body{ height: 100svh; overflow: hidden; padding: 10px; }
+      #wrap{ height: 100%; display: flex; flex-direction: column; }
+      #game{ flex: 1; display: flex; flex-direction: column; min-height: 0; }
+      canvas{ width: 100%; height: auto; max-width: none; max-height: 46svh; }
+      #panel{ flex: 1; display: flex; flex-direction: column; min-height: 0; }
+      #log{ position: sticky; top: 0; z-index: 10; flex: 1; height: auto; min-height: 96px; }
+      .row{ flex: 0 0 auto; }
+      #dpad{ display: none; }
+      #codeDetails{ display: block; }
+      textarea{ min-height: 72px; }
+    }
+
   </style>
 </head>
 <body>
@@ -48,7 +61,6 @@
       <canvas id="cv" width="620" height="620" aria-label="game"></canvas>
 
       <div id="panel">
-        <div id="log"></div>
         <div class="row">
           <button id="btnNew">New Run</button>
           <button id="btnNext">Next Floor</button>
@@ -67,12 +79,15 @@
           <button data-move="L">◀</button><button data-move="W">●</button><button data-move="R">▶</button>
           <div class="empty">.</div><button data-move="D">▼</button><div class="empty">.</div>
         </div>
-        <div class="hint">
-          PC: 矢印/WASDで移動、Spaceで攻撃、Nで次階。<br/>
-          iPhone: 十字ボタンで移動、●で待機(ターン進行)。
-        </div>
-
-        <textarea id="codeBox" placeholder="Export/Import code がここに出ます"></textarea>
+        <details id="codeDetails">
+          <summary class="hint">操作ヘルプ / Export・Import（タップで開く）</summary>
+          <div class="hint" style="margin-top:8px;">
+            PC: 矢印/WASDで移動、Spaceで攻撃、Nで次階。<br/>
+            iPhone: <b>スワイプ</b>で移動、<b>タップ</b>で待機(ターン進行)。
+          </div>
+          <textarea id="codeBox" placeholder="Export/Import code がここに出ます"></textarea>
+        </details>
+        <div id="log"></div>
       </div>
     </div>
   </div>
@@ -115,7 +130,7 @@
 
   // ===== Game constants =====
   const W = 31, H = 31;
-  const VIEW = 15; // viewport size (odd number). Smaller = more zoom.
+  const TILE = 20; // draw scale (canvas logical tiles -> pixels)
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
 
@@ -126,6 +141,7 @@
     seed: document.getElementById('statSeed'),
     log: document.getElementById('log'),
     code: document.getElementById('codeBox'),
+    codeDetails: document.getElementById('codeDetails'),
   };
 
   function log(msg){
@@ -363,91 +379,55 @@
       ctx.clearRect(0,0,canvas.width,canvas.height);
       return;
     }
-
-    // --- Camera / zoom ---
-    // We draw only a VIEW x VIEW window centered on the player.
-    // This makes each tile bigger on iPhone while keeping the full map size.
-    const tile = canvas.width / VIEW;
-    const half = Math.floor(VIEW/2);
-
-    let camX = state.player.x - half;
-    let camY = state.player.y - half;
-    camX = clamp(camX, 0, W - VIEW);
-    camY = clamp(camY, 0, H - VIEW);
+    const px = canvas.width / W;
+    const py = canvas.height / H;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // tiles (screen space: sx/sy)
-    for (let sy=0; sy<VIEW; sy++){
-      for (let sx=0; sx<VIEW; sx++){
-        const x = camX + sx;
-        const y = camY + sy;
-
-        const px = sx * tile;
-        const py = sy * tile;
-
-        if (!isInside(x,y)){
-          ctx.fillStyle = "#0b0c10";
-          ctx.fillRect(px, py, tile, tile);
-          continue;
-        }
-
+    // tiles
+    for (let y=0;y<H;y++){
+      for (let x=0;x<W;x++){
         const seen = state.revealed[y][x];
         if (!seen){
           // fog
           ctx.fillStyle = "#0b0c10";
-          ctx.fillRect(px, py, tile, tile);
+          ctx.fillRect(x*px, y*py, px, py);
           continue;
         }
-
         if (state.map[y][x]===1){
           ctx.fillStyle = "#1b1e28"; // wall
-          ctx.fillRect(px, py, tile, tile);
+          ctx.fillRect(x*px, y*py, px, py);
         } else {
           ctx.fillStyle = "#111318"; // floor
-          ctx.fillRect(px, py, tile, tile);
+          ctx.fillRect(x*px, y*py, px, py);
           // subtle grid
-          ctx.strokeStyle = "rgba(255,255,255,0.05)";
-          ctx.strokeRect(px, py, tile, tile);
+          ctx.strokeStyle = "rgba(255,255,255,0.04)";
+          ctx.strokeRect(x*px, y*py, px, py);
         }
       }
     }
 
-    // use a font size relative to tile
-    ctx.font = `${Math.floor(tile*0.75)}px sans-serif`;
-
-    // helper: world->screen
-    const toScreen = (wx,wy)=>({ sx: (wx-camX)*tile, sy: (wy-camY)*tile });
-
     // exit
-    if (isInside(state.exit.x, state.exit.y) && state.revealed[state.exit.y][state.exit.x]){
-      if (state.exit.x>=camX && state.exit.x<camX+VIEW && state.exit.y>=camY && state.exit.y<camY+VIEW){
-        const s = toScreen(state.exit.x, state.exit.y);
-        ctx.fillStyle = "#c9b458";
-        ctx.fillText("⏚", s.sx + tile*0.25, s.sy + tile*0.75);
-      }
+    if (state.revealed[state.exit.y][state.exit.x]){
+      ctx.fillStyle = "#c9b458";
+      ctx.fillText("⏚", state.exit.x*px + px*0.25, state.exit.y*py + py*0.75);
     }
 
     // enemies
+    ctx.font = `${Math.floor(py*0.75)}px sans-serif`;
     for (const e of state.enemies){
       if (!state.revealed[e.y][e.x]) continue;
-      if (e.x<camX || e.x>=camX+VIEW || e.y<camY || e.y>=camY+VIEW) continue;
-      const s = toScreen(e.x, e.y);
       ctx.fillStyle = "#ff6b6b";
-      ctx.fillText("☠", s.sx + tile*0.25, s.sy + tile*0.75);
+      ctx.fillText("☠", e.x*px + px*0.25, e.y*py + py*0.75);
     }
 
     // player
-    if (state.player.x>=camX && state.player.x<camX+VIEW && state.player.y>=camY && state.player.y<camY+VIEW){
-      const s = toScreen(state.player.x, state.player.y);
-      ctx.fillStyle = "#7bdff2";
-      ctx.fillText("☺", s.sx + tile*0.25, s.sy + tile*0.75);
-    }
+    ctx.fillStyle = "#7bdff2";
+    ctx.fillText("☺", state.player.x*px + px*0.25, state.player.y*py + py*0.75);
   }
 
-
   // ===== Save/Load =====
-  const LS_KEY = "bluesongsRogueSaveV1";
+  const LS_KEY = "miniRogueSaveV1";
 
   function saveLocal(){
     if (!state) return;
@@ -503,6 +483,7 @@
     };
     const json = JSON.stringify(payload);
     const code = b64encode(json);
+    if (ui.codeDetails) ui.codeDetails.open = true;
     ui.code.value = code;
     ui.code.focus();
     ui.code.select();
@@ -510,6 +491,7 @@
   }
 
   function importCode(){
+    if (ui.codeDetails) ui.codeDetails.open = true;
     const code = ui.code.value.trim();
     if (!code){
       log("Paste code into the box first.");
@@ -572,6 +554,54 @@
   }
 
   document.addEventListener('keydown', keyHandler, {passive:false});
+
+  // Prevent iOS double-tap zoom in the app
+  document.addEventListener('dblclick', (e)=>{ e.preventDefault(); }, {passive:false});
+
+  // iPhone-friendly controls: swipe to move, tap to wait (on the map)
+  let touchStart = null;
+  canvas.addEventListener('touchstart', (e)=>{
+    if (!state) return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('touchend', (e)=>{
+    if (!state) return;
+    if (!touchStart) return;
+    const t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : null;
+    if (!t) return;
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    touchStart = null;
+
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    const SWIPE = 28;   // px
+    const TAP = 10;     // px
+
+    if (ax < TAP && ay < TAP){
+      // tap = wait
+      waitTurn();
+      e.preventDefault();
+      return;
+    }
+
+    if (ax < SWIPE && ay < SWIPE){
+      // tiny gesture: ignore
+      e.preventDefault();
+      return;
+    }
+
+    if (ax >= ay){
+      if (dx > 0) tryMove(1,0); else tryMove(-1,0);
+    } else {
+      if (dy > 0) tryMove(0,1); else tryMove(0,-1);
+    }
+    e.preventDefault();
+  }, {passive:false});
+
 
   // D-pad buttons (touch-friendly)
   document.querySelectorAll('#dpad button').forEach(btn=>{
