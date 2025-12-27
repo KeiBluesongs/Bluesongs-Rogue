@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini Rogue (Offline)</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif; }
+    body { margin: 0; padding: 12px; background: #0e0f12; color: #e8e8e8; }
+    h1 { margin: 0 0 8px; font-size: 18px; }
+    #wrap { display: grid; gap: 10px; grid-template-columns: 1fr; max-width: 980px; margin: 0 auto; }
+    #top { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    #hud { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+    .pill { padding: 6px 10px; border-radius: 999px; background: #1a1c22; border: 1px solid #2a2d37; font-size: 13px; }
+    #game { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    canvas { width: 100%; height: auto; max-width: 620px; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; touch-action: none; }
+    #panel { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    #log { height: 160px; overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
+    button { background: #1e2230; color: #fff; border: 1px solid #2f3850; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+    button:active { transform: translateY(1px); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; }
+    textarea { width: 100%; min-height: 92px; border-radius: 10px; border: 1px solid #2a2d37; background: #0f1116; color: #e8e8e8; padding: 10px; font-size: 12px; }
+    .hint { font-size: 12px; color: #b8bdc9; }
+    #dpad { display: grid; gap: 8px; grid-template-columns: 60px 60px 60px; align-items: center; justify-content: start; }
+    #dpad button { padding: 12px 0; }
+    #dpad .empty { visibility: hidden; }
+    @media (min-width: 860px){
+      #top { grid-template-columns: 640px 1fr; align-items: start; }
+      #game { grid-template-columns: 640px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <h1>Mini Rogue（1ファイル / iPhone対応）</h1>
+    <div id="hud">
+      <div class="pill" id="statFloor">FLOOR: 1</div>
+      <div class="pill" id="statHP">HP: 10/10</div>
+      <div class="pill" id="statATK">ATK: 2</div>
+      <div class="pill" id="statSeed">SEED: -</div>
+    </div>
+
+    <div id="game">
+      <canvas id="cv" width="620" height="620" aria-label="game"></canvas>
+
+      <div id="panel">
+        <div class="row">
+          <button id="btnNew">New Run</button>
+          <button id="btnNext">Next Floor</button>
+          <button id="btnSave">Save</button>
+          <button id="btnLoad">Load</button>
+        </div>
+
+        <div class="row">
+          <button id="btnExport">Export Code</button>
+          <button id="btnImport">Import Code</button>
+          <button id="btnHelp">Help</button>
+        </div>
+
+        <div id="dpad" aria-label="dpad">
+          <div class="empty">.</div><button data-move="U">▲</button><div class="empty">.</div>
+          <button data-move="L">◀</button><button data-move="W">●</button><button data-move="R">▶</button>
+          <div class="empty">.</div><button data-move="D">▼</button><div class="empty">.</div>
+        </div>
+        <div class="hint">
+          PC: 矢印/WASDで移動、Spaceで攻撃、Nで次階。<br/>
+          iPhone: 十字ボタンで移動、●で待機(ターン進行)。
+        </div>
+
+        <textarea id="codeBox" placeholder="Export/Import code がここに出ます"></textarea>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== Utilities (seeded RNG) =====
+  function xmur3(str){
+    let h = 1779033703 ^ str.length;
+    for (let i=0; i<str.length; i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function(){
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= (h >>> 16);
+      return h >>> 0;
+    };
+  }
+  function sfc32(a,b,c,d){
+    return function(){
+      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+      let t = (a + b) | 0;
+      a = b ^ (b >>> 9);
+      b = (c + (c << 3)) | 0;
+      c = (c << 21) | (c >>> 11);
+      d = (d + 1) | 0;
+      t = (t + d) | 0;
+      c = (c + t) | 0;
+      return (t >>> 0) / 4294967296;
+    }
+  }
+  function makeRng(seedStr){
+    const seed = xmur3(seedStr);
+    return sfc32(seed(), seed(), seed(), seed());
+  }
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const randInt=(rng, n)=>Math.floor(rng()*n);
+
+  // ===== Game constants =====
+  const W = 31, H = 31;
+  const TILE = 20; // draw scale (canvas logical tiles -> pixels)
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+
+  const ui = {
+    floor: document.getElementById('statFloor'),
+    hp: document.getElementById('statHP'),
+    atk: document.getElementById('statATK'),
+    seed: document.getElementById('statSeed'),
+    log: document.getElementById('log'),
+    code: document.getElementById('codeBox'),
+  };
+
+  function log(msg){
+    const p = document.createElement('div');
+    p.textContent = msg;
+    ui.log.appendChild(p);
+    ui.log.scrollTop = ui.log.scrollHeight;
+  }
+
+  // ===== State =====
+  let state = null;
+
+  function newRun(seedStr){
+    const seed = seedStr || (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    state = {
+      version: 1,
+      seed,
+      floor: 1,
+      player: { x: 1, y: 1, hp: 10, maxHp: 10, atk: 2, xp: 0 },
+      enemies: [],
+      map: [],
+      revealed: [],
+      exit: { x: W-2, y: H-2 },
+      turn: 0,
+    };
+    buildFloor();
+    ui.log.innerHTML = '';
+    log("New run started.");
+    render();
+  }
+
+  function buildFloor(){
+    const rng = makeRng(state.seed + ":" + state.floor);
+    // Initialize all walls
+    state.map = Array.from({length:H}, ()=>Array.from({length:W}, ()=>1)); // 1=wall
+    state.revealed = Array.from({length:H}, ()=>Array.from({length:W}, ()=>0));
+
+    // Simple "rooms + corridors"
+    const rooms = [];
+    const roomCount = 8 + randInt(rng, 6);
+    for (let i=0;i<roomCount;i++){
+      const rw = 4 + randInt(rng, 7);
+      const rh = 4 + randInt(rng, 7);
+      const rx = 1 + randInt(rng, W - rw - 2);
+      const ry = 1 + randInt(rng, H - rh - 2);
+      const room = {x:rx,y:ry,w:rw,h:rh, cx:Math.floor(rx+rw/2), cy:Math.floor(ry+rh/2)};
+      // carve room
+      for (let y=ry;y<ry+rh;y++){
+        for (let x=rx;x<rx+rw;x++){
+          state.map[y][x]=0;
+        }
+      }
+      // connect to previous room
+      if (rooms.length){
+        const prev = rooms[rooms.length-1];
+        carveCorridor(prev.cx, prev.cy, room.cx, room.cy, rng);
+      }
+      rooms.push(room);
+    }
+
+    // Place player at first room center, exit at last room center
+    const first = rooms[0];
+    const last = rooms[rooms.length-1];
+    state.player.x = first.cx; state.player.y = first.cy;
+    state.exit.x = last.cx; state.exit.y = last.cy;
+
+    // Place enemies
+    state.enemies = [];
+    const eCount = 6 + Math.floor(state.floor*1.2) + randInt(rng, 4);
+    let tries = 0;
+    while (state.enemies.length < eCount && tries < 2000){
+      tries++;
+      const x = randInt(rng, W);
+      const y = randInt(rng, H);
+      if (isWalkable(x,y) && !(x===state.player.x && y===state.player.y) && !(x===state.exit.x && y===state.exit.y)){
+        // avoid stacking
+        if (!state.enemies.some(e=>e.x===x && e.y===y)){
+          const hp = 2 + Math.floor(state.floor/2) + randInt(rng, 3);
+          const atk = 1 + Math.floor(state.floor/3);
+          state.enemies.push({x,y,hp,atk});
+        }
+      }
+    }
+
+    // Reveal around player
+    revealAround();
+    updateHud();
+    log(`Entered floor ${state.floor}.`);
+    log(`Tip: reach the exit (⏚) to go next floor.`);
+  }
+
+  function carveCorridor(x1,y1,x2,y2,rng){
+    // L-shaped
+    let x=x1,y=y1;
+    const firstHoriz = rng() < 0.5;
+    const step = (a,b)=> a<b ? 1 : (a>b ? -1 : 0);
+    if (firstHoriz){
+      while (x!==x2){ state.map[y][x]=0; x+=step(x,x2); }
+      while (y!==y2){ state.map[y][x]=0; y+=step(y,y2); }
+    } else {
+      while (y!==y2){ state.map[y][x]=0; y+=step(y,y2); }
+      while (x!==x2){ state.map[y][x]=0; x+=step(x,x2); }
+    }
+    state.map[y2][x2]=0;
+  }
+
+  function isInside(x,y){ return x>=0 && y>=0 && x<W && y<H; }
+  function isWalkable(x,y){
+    if (!isInside(x,y)) return false;
+    return state.map[y][x]===0;
+  }
+  function enemyAt(x,y){ return state.enemies.find(e=>e.x===x && e.y===y); }
+
+  function revealAround(){
+    const r = 4;
+    for (let dy=-r; dy<=r; dy++){
+      for (let dx=-r; dx<=r; dx++){
+        const x = state.player.x + dx;
+        const y = state.player.y + dy;
+        if (isInside(x,y)){
+          if (dx*dx + dy*dy <= r*r) state.revealed[y][x]=1;
+        }
+      }
+    }
+  }
+
+  function updateHud(){
+    ui.floor.textContent = `FLOOR: ${state.floor}`;
+    ui.hp.textContent = `HP: ${state.player.hp}/${state.player.maxHp}`;
+    ui.atk.textContent = `ATK: ${state.player.atk}`;
+    ui.seed.textContent = `SEED: ${state.seed.slice(0,10)}…`;
+  }
+
+  function tryMove(dx,dy){
+    if (!state) return;
+    const nx = state.player.x + dx;
+    const ny = state.player.y + dy;
+
+    // attack if enemy
+    const e = enemyAt(nx,ny);
+    if (e){
+      attackEnemy(e);
+      endTurn();
+      return;
+    }
+
+    if (isWalkable(nx,ny)){
+      state.player.x = nx;
+      state.player.y = ny;
+      revealAround();
+
+      if (nx===state.exit.x && ny===state.exit.y){
+        log("You reached the exit. Press 'Next Floor' (or N).");
+      }
+      endTurn();
+      return;
+    }
+    // bump wall
+    log("Bumped into a wall.");
+  }
+
+  function waitTurn(){
+    if (!state) return;
+    endTurn();
+  }
+
+  function attackEnemy(e){
+    e.hp -= state.player.atk;
+    log(`You hit enemy for ${state.player.atk}. (enemy HP ${Math.max(0,e.hp)})`);
+    if (e.hp<=0){
+      log("Enemy defeated.");
+      state.player.xp += 1;
+      // small heal chance
+      if (state.player.xp % 3 === 0){
+        state.player.maxHp += 1;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 2);
+        state.player.atk += (state.player.xp % 6 === 0) ? 1 : 0;
+        log("Level up-ish: +MaxHP (and sometimes +ATK).");
+      }
+      state.enemies = state.enemies.filter(x=>x!==e);
+    }
+  }
+
+  function endTurn(){
+    state.turn++;
+    enemiesAct();
+    // check death
+    if (state.player.hp<=0){
+      log("YOU DIED. Press New Run.");
+    }
+    updateHud();
+    render();
+  }
+
+  function enemiesAct(){
+    // very simple: each enemy moves 1 step toward player if in revealed area; attacks if adjacent
+    for (const e of state.enemies){
+      // If adjacent, attack
+      const dist = Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y);
+      if (dist===1){
+        state.player.hp -= e.atk;
+        log(`Enemy hits you for ${e.atk}. (HP ${Math.max(0,state.player.hp)})`);
+        continue;
+      }
+
+      // chase only if player is "seen" (within 6 tiles)
+      const dx = state.player.x - e.x;
+      const dy = state.player.y - e.y;
+      if (dx*dx + dy*dy > 36) continue;
+
+      const stepX = dx===0 ? 0 : (dx>0 ? 1 : -1);
+      const stepY = dy===0 ? 0 : (dy>0 ? 1 : -1);
+
+      // choose axis that reduces distance and is walkable
+      const options = [];
+      if (stepX!==0) options.push([stepX,0]);
+      if (stepY!==0) options.push([0,stepY]);
+      // fallback shuffle-ish
+      if (options.length===2 && Math.random()<0.5) options.reverse();
+
+      for (const [mx,my] of options){
+        const nx = e.x + mx, ny = e.y + my;
+        if ((nx===state.player.x && ny===state.player.y)) continue;
+        if (isWalkable(nx,ny) && !enemyAt(nx,ny) && !(nx===state.exit.x && ny===state.exit.y)){
+          e.x=nx; e.y=ny;
+          break;
+        }
+      }
+    }
+  }
+
+  // ===== Render =====
+  function render(){
+    if (!state){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      return;
+    }
+    const px = canvas.width / W;
+    const py = canvas.height / H;
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // tiles
+    for (let y=0;y<H;y++){
+      for (let x=0;x<W;x++){
+        const seen = state.revealed[y][x];
+        if (!seen){
+          // fog
+          ctx.fillStyle = "#0b0c10";
+          ctx.fillRect(x*px, y*py, px, py);
+          continue;
+        }
+        if (state.map[y][x]===1){
+          ctx.fillStyle = "#1b1e28"; // wall
+          ctx.fillRect(x*px, y*py, px, py);
+        } else {
+          ctx.fillStyle = "#111318"; // floor
+          ctx.fillRect(x*px, y*py, px, py);
+          // subtle grid
+          ctx.strokeStyle = "rgba(255,255,255,0.04)";
+          ctx.strokeRect(x*px, y*py, px, py);
+        }
+      }
+    }
+
+    // exit
+    if (state.revealed[state.exit.y][state.exit.x]){
+      ctx.fillStyle = "#c9b458";
+      ctx.fillText("⏚", state.exit.x*px + px*0.25, state.exit.y*py + py*0.75);
+    }
+
+    // enemies
+    ctx.font = `${Math.floor(py*0.75)}px sans-serif`;
+    for (const e of state.enemies){
+      if (!state.revealed[e.y][e.x]) continue;
+      ctx.fillStyle = "#ff6b6b";
+      ctx.fillText("☠", e.x*px + px*0.25, e.y*py + py*0.75);
+    }
+
+    // player
+    ctx.fillStyle = "#7bdff2";
+    ctx.fillText("☺", state.player.x*px + px*0.25, state.player.y*py + py*0.75);
+  }
+
+  // ===== Save/Load =====
+  const LS_KEY = "miniRogueSaveV1";
+
+  function saveLocal(){
+    if (!state) return;
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    log("Saved to this browser.");
+  }
+
+  function loadLocal(){
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw){
+      log("No save found in this browser.");
+      return;
+    }
+    try{
+      const obj = JSON.parse(raw);
+      if (!obj || obj.version !== 1) throw new Error("bad save");
+      state = obj;
+      log("Loaded from this browser.");
+      updateHud();
+      render();
+    } catch(e){
+      log("Load failed (corrupted save).");
+    }
+  }
+
+  // ===== Export/Import Code (copy/paste sync) =====
+  // Simple base64 encode/decode for UTF-8
+  function b64encode(str){
+    const bytes = new TextEncoder().encode(str);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  }
+  function b64decode(b64){
+    const bin = atob(b64);
+    const bytes = new Uint8Array([...bin].map(ch=>ch.charCodeAt(0)));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function exportCode(){
+    if (!state) return;
+    // We export minimal necessary state
+    const payload = {
+      v: 1,
+      seed: state.seed,
+      floor: state.floor,
+      player: state.player,
+      enemies: state.enemies,
+      map: state.map,
+      revealed: state.revealed,
+      exit: state.exit,
+      turn: state.turn,
+    };
+    const json = JSON.stringify(payload);
+    const code = b64encode(json);
+    ui.code.value = code;
+    ui.code.focus();
+    ui.code.select();
+    log("Exported code (copied if you paste it somewhere).");
+  }
+
+  function importCode(){
+    const code = ui.code.value.trim();
+    if (!code){
+      log("Paste code into the box first.");
+      return;
+    }
+    try{
+      const json = b64decode(code);
+      const payload = JSON.parse(json);
+      if (!payload || payload.v !== 1) throw new Error("bad");
+      state = {
+        version: 1,
+        seed: payload.seed,
+        floor: payload.floor,
+        player: payload.player,
+        enemies: payload.enemies,
+        map: payload.map,
+        revealed: payload.revealed,
+        exit: payload.exit,
+        turn: payload.turn,
+      };
+      log("Imported code successfully.");
+      updateHud();
+      render();
+    } catch(e){
+      log("Import failed (invalid code).");
+    }
+  }
+
+  function nextFloor(){
+    if (!state) return;
+    // allow only if at exit
+    if (state.player.x!==state.exit.x || state.player.y!==state.exit.y){
+      log("You are not on the exit yet (⏚).");
+      return;
+    }
+    // small reward
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + 2);
+    state.floor += 1;
+    buildFloor();
+    render();
+  }
+
+  // ===== Input handling =====
+  function keyHandler(ev){
+    if (!state) return;
+    if (ev.key === "ArrowUp" || ev.key.toLowerCase()==="w") { ev.preventDefault(); tryMove(0,-1); }
+    else if (ev.key === "ArrowDown" || ev.key.toLowerCase()==="s") { ev.preventDefault(); tryMove(0,1); }
+    else if (ev.key === "ArrowLeft" || ev.key.toLowerCase()==="a") { ev.preventDefault(); tryMove(-1,0); }
+    else if (ev.key === "ArrowRight" || ev.key.toLowerCase()==="d") { ev.preventDefault(); tryMove(1,0); }
+    else if (ev.key === " "){ ev.preventDefault(); // attack in place = wait, but if adjacent enemy? keep simple
+      // Try attack any adjacent enemy (priority order)
+      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      for (const [dx,dy] of dirs){
+        const e = enemyAt(state.player.x+dx, state.player.y+dy);
+        if (e){ attackEnemy(e); endTurn(); return; }
+      }
+      log("No adjacent enemy. (Space does nothing)");
+    }
+    else if (ev.key.toLowerCase()==="n"){ ev.preventDefault(); nextFloor(); }
+  }
+
+  document.addEventListener('keydown', keyHandler, {passive:false});
+
+  // D-pad buttons (touch-friendly)
+  document.querySelectorAll('#dpad button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const m = btn.dataset.move;
+      if (m==="U") tryMove(0,-1);
+      else if (m==="D") tryMove(0,1);
+      else if (m==="L") tryMove(-1,0);
+      else if (m==="R") tryMove(1,0);
+      else if (m==="W") waitTurn();
+    });
+  });
+
+  // Buttons
+  document.getElementById('btnNew').addEventListener('click', ()=> newRun());
+  document.getElementById('btnNext').addEventListener('click', nextFloor);
+  document.getElementById('btnSave').addEventListener('click', saveLocal);
+  document.getElementById('btnLoad').addEventListener('click', loadLocal);
+  document.getElementById('btnExport').addEventListener('click', exportCode);
+  document.getElementById('btnImport').addEventListener('click', importCode);
+  document.getElementById('btnHelp').addEventListener('click', ()=>{
+    log("Goal: explore, survive, reach exit ⏚.");
+    log("Move into enemies to attack. Enemies adjacent will hit you on their turn.");
+    log("Export/Import code = copy/paste sync between iPhone and iMac.");
+  });
+
+  // Start
+  newRun();
+})();
+</script>
+</body>
+</html>
