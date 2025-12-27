@@ -15,7 +15,7 @@
     #game { display: grid; gap: 10px; grid-template-columns: 1fr; }
     canvas { width: 100%; height: auto; max-width: 620px; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; touch-action: none; }
     #panel { display: grid; gap: 10px; grid-template-columns: 1fr; }
-    #log { height: 160px; overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
+    #log { position: sticky; top: 0; z-index: 10; height: 140px; overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
     button { background: #1e2230; color: #fff; border: 1px solid #2f3850; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
     button:active { transform: translateY(1px); }
     .row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -24,7 +24,11 @@
     #dpad { display: grid; gap: 8px; grid-template-columns: 60px 60px 60px; align-items: center; justify-content: start; }
     #dpad button { padding: 12px 0; }
     #dpad .empty { visibility: hidden; }
-    @media (min-width: 860px){
+    
+    @media (max-width: 859px){
+      #log{ height: 120px; }
+    }
+@media (min-width: 860px){
       #top { grid-template-columns: 640px 1fr; align-items: start; }
       #game { grid-template-columns: 640px 1fr; }
     }
@@ -44,6 +48,7 @@
       <canvas id="cv" width="620" height="620" aria-label="game"></canvas>
 
       <div id="panel">
+        <div id="log"></div>
         <div class="row">
           <button id="btnNew">New Run</button>
           <button id="btnNext">Next Floor</button>
@@ -68,7 +73,6 @@
         </div>
 
         <textarea id="codeBox" placeholder="Export/Import code がここに出ます"></textarea>
-        <div id="log"></div>
       </div>
     </div>
   </div>
@@ -111,7 +115,7 @@
 
   // ===== Game constants =====
   const W = 31, H = 31;
-  const TILE = 20; // draw scale (canvas logical tiles -> pixels)
+  const VIEW = 15; // viewport size (odd number). Smaller = more zoom.
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
 
@@ -359,55 +363,91 @@
       ctx.clearRect(0,0,canvas.width,canvas.height);
       return;
     }
-    const px = canvas.width / W;
-    const py = canvas.height / H;
+
+    // --- Camera / zoom ---
+    // We draw only a VIEW x VIEW window centered on the player.
+    // This makes each tile bigger on iPhone while keeping the full map size.
+    const tile = canvas.width / VIEW;
+    const half = Math.floor(VIEW/2);
+
+    let camX = state.player.x - half;
+    let camY = state.player.y - half;
+    camX = clamp(camX, 0, W - VIEW);
+    camY = clamp(camY, 0, H - VIEW);
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // tiles
-    for (let y=0;y<H;y++){
-      for (let x=0;x<W;x++){
+    // tiles (screen space: sx/sy)
+    for (let sy=0; sy<VIEW; sy++){
+      for (let sx=0; sx<VIEW; sx++){
+        const x = camX + sx;
+        const y = camY + sy;
+
+        const px = sx * tile;
+        const py = sy * tile;
+
+        if (!isInside(x,y)){
+          ctx.fillStyle = "#0b0c10";
+          ctx.fillRect(px, py, tile, tile);
+          continue;
+        }
+
         const seen = state.revealed[y][x];
         if (!seen){
           // fog
           ctx.fillStyle = "#0b0c10";
-          ctx.fillRect(x*px, y*py, px, py);
+          ctx.fillRect(px, py, tile, tile);
           continue;
         }
+
         if (state.map[y][x]===1){
           ctx.fillStyle = "#1b1e28"; // wall
-          ctx.fillRect(x*px, y*py, px, py);
+          ctx.fillRect(px, py, tile, tile);
         } else {
           ctx.fillStyle = "#111318"; // floor
-          ctx.fillRect(x*px, y*py, px, py);
+          ctx.fillRect(px, py, tile, tile);
           // subtle grid
-          ctx.strokeStyle = "rgba(255,255,255,0.04)";
-          ctx.strokeRect(x*px, y*py, px, py);
+          ctx.strokeStyle = "rgba(255,255,255,0.05)";
+          ctx.strokeRect(px, py, tile, tile);
         }
       }
     }
 
+    // use a font size relative to tile
+    ctx.font = `${Math.floor(tile*0.75)}px sans-serif`;
+
+    // helper: world->screen
+    const toScreen = (wx,wy)=>({ sx: (wx-camX)*tile, sy: (wy-camY)*tile });
+
     // exit
-    if (state.revealed[state.exit.y][state.exit.x]){
-      ctx.fillStyle = "#c9b458";
-      ctx.fillText("⏚", state.exit.x*px + px*0.25, state.exit.y*py + py*0.75);
+    if (isInside(state.exit.x, state.exit.y) && state.revealed[state.exit.y][state.exit.x]){
+      if (state.exit.x>=camX && state.exit.x<camX+VIEW && state.exit.y>=camY && state.exit.y<camY+VIEW){
+        const s = toScreen(state.exit.x, state.exit.y);
+        ctx.fillStyle = "#c9b458";
+        ctx.fillText("⏚", s.sx + tile*0.25, s.sy + tile*0.75);
+      }
     }
 
     // enemies
-    ctx.font = `${Math.floor(py*0.75)}px sans-serif`;
     for (const e of state.enemies){
       if (!state.revealed[e.y][e.x]) continue;
+      if (e.x<camX || e.x>=camX+VIEW || e.y<camY || e.y>=camY+VIEW) continue;
+      const s = toScreen(e.x, e.y);
       ctx.fillStyle = "#ff6b6b";
-      ctx.fillText("☠", e.x*px + px*0.25, e.y*py + py*0.75);
+      ctx.fillText("☠", s.sx + tile*0.25, s.sy + tile*0.75);
     }
 
     // player
-    ctx.fillStyle = "#7bdff2";
-    ctx.fillText("☺", state.player.x*px + px*0.25, state.player.y*py + py*0.75);
+    if (state.player.x>=camX && state.player.x<camX+VIEW && state.player.y>=camY && state.player.y<camY+VIEW){
+      const s = toScreen(state.player.x, state.player.y);
+      ctx.fillStyle = "#7bdff2";
+      ctx.fillText("☺", s.sx + tile*0.25, s.sy + tile*0.75);
+    }
   }
 
+
   // ===== Save/Load =====
-  const LS_KEY = "miniRogueSaveV1";
+  const LS_KEY = "bluesongsRogueSaveV1";
 
   function saveLocal(){
     if (!state) return;
