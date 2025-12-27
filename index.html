@@ -6,7 +6,7 @@
   <title>Bluesongs Rogue (Offline)</title>
   <style>
     :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif; }
-    body { margin: 0; padding: 12px; background: #0e0f12; color: #e8e8e8; }
+    body { margin: 0; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); background: #0e0f12; color: #e8e8e8; overscroll-behavior: none; }
     h1 { margin: 0 0 8px; font-size: 18px; }
     #wrap { display: grid; gap: 10px; grid-template-columns: 1fr; max-width: 980px; margin: 0 auto; }
     #top { display: grid; gap: 10px; grid-template-columns: 1fr; }
@@ -15,7 +15,7 @@
     #game { display: grid; gap: 10px; grid-template-columns: 1fr; }
     canvas { width: 100%; height: auto; max-width: 620px; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; touch-action: none; }
     #panel { display: grid; gap: 10px; grid-template-columns: 1fr; }
-    #log { height: 160px; overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
+    #log { width: 100%; max-width: 100%; height: clamp(110px, 16svh, 150px); overflow: auto; background: #111318; border: 1px solid #2a2d37; border-radius: 10px; padding: 8px; font-size: 13px; line-height: 1.4; }
     button { background: #1e2230; color: #fff; border: 1px solid #2f3850; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
     button:active { transform: translateY(1px); }
     .row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -36,16 +36,17 @@
       body{ height: 100svh; overflow: hidden; padding: 10px; }
       #wrap{ height: 100%; display: flex; flex-direction: column; }
       #game{ flex: 1; display: flex; flex-direction: column; min-height: 0; }
-      canvas{ width: 100%; height: auto; max-width: none; max-height: 46svh; }
+      canvas{ width: 100%; height: auto; max-width: none; max-height: 44svh; }
       #panel{ flex: 1; display: flex; flex-direction: column; min-height: 0; }
-      #log{ position: sticky; top: 0; z-index: 10; flex: 1; height: auto; min-height: 96px; }
+      #log{ flex: 0 0 auto; height: clamp(96px, 16svh, 140px); }
       .row{ flex: 0 0 auto; }
       #dpad{ display: none; }
       #codeDetails{ display: block; }
       textarea{ min-height: 72px; }
     }
 
-  </style>
+      *, *::before, *::after { box-sizing: border-box; }
+</style>
 </head>
 <body>
   <div id="wrap">
@@ -83,7 +84,7 @@
           <summary class="hint">操作ヘルプ / Export・Import（タップで開く）</summary>
           <div class="hint" style="margin-top:8px;">
             PC: 矢印/WASDで移動、Spaceで攻撃、Nで次階。<br/>
-            iPhone: <b>スワイプ</b>で移動、<b>タップ</b>で待機(ターン進行)。
+            iPhone: <b>スワイプ</b>で移動、<b>タップ</b>で待機(ターン進行)、<b>ピンチ</b>でズーム。
           </div>
           <textarea id="codeBox" placeholder="Export/Import code がここに出ます"></textarea>
         </details>
@@ -130,9 +131,14 @@
 
   // ===== Game constants =====
   const W = 31, H = 31;
-  const TILE = 20; // draw scale (canvas logical tiles -> pixels)
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
+
+  // Zoom (pinch on iPhone). 1.0 = whole map fits; >1 zooms in.
+  const IS_MOBILE = matchMedia("(max-width: 859px)").matches;
+  let zoom = IS_MOBILE ? 1.6 : 1.0;
+  const ZOOM_MIN = 0.9;
+  const ZOOM_MAX = 2.8;
 
   const ui = {
     floor: document.getElementById('statFloor'),
@@ -373,58 +379,76 @@
     }
   }
 
-  // ===== Render =====
-  function render(){
-    if (!state){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      return;
-    }
-    const px = canvas.width / W;
-    const py = canvas.height / H;
+// ===== Render =====
+function render(){
+  // reset transform
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+  if (!state) return;
 
-    // tiles
-    for (let y=0;y<H;y++){
-      for (let x=0;x<W;x++){
-        const seen = state.revealed[y][x];
-        if (!seen){
-          // fog
-          ctx.fillStyle = "#0b0c10";
-          ctx.fillRect(x*px, y*py, px, py);
-          continue;
-        }
-        if (state.map[y][x]===1){
-          ctx.fillStyle = "#1b1e28"; // wall
-          ctx.fillRect(x*px, y*py, px, py);
-        } else {
-          ctx.fillStyle = "#111318"; // floor
-          ctx.fillRect(x*px, y*py, px, py);
-          // subtle grid
-          ctx.strokeStyle = "rgba(255,255,255,0.04)";
-          ctx.strokeRect(x*px, y*py, px, py);
-        }
+  const base = canvas.width / W;           // tile size at zoom=1
+  const mapW = W * base * zoom;
+  const mapH = H * base * zoom;
+
+  // center on player (clamped so you don't see empty space at edges)
+  const targetX = canvas.width/2 - (state.player.x + 0.5) * base * zoom;
+  const targetY = canvas.height/2 - (state.player.y + 0.5) * base * zoom;
+  const minX = Math.min(0, canvas.width - mapW);
+  const minY = Math.min(0, canvas.height - mapH);
+  const offX = clamp(targetX, minX, 0);
+  const offY = clamp(targetY, minY, 0);
+
+  // Apply zoom + pan
+  ctx.setTransform(zoom, 0, 0, zoom, offX, offY);
+
+  const px = base;
+  const py = base;
+
+  // tiles
+  for (let y=0;y<H;y++){
+    for (let x=0;x<W;x++){
+      const seen = state.revealed[y][x];
+      if (!seen){
+        // fog
+        ctx.fillStyle = "#0b0c10";
+        ctx.fillRect(x*px, y*py, px, py);
+        continue;
+      }
+      if (state.map[y][x]===1){
+        ctx.fillStyle = "#1b1e28"; // wall
+        ctx.fillRect(x*px, y*py, px, py);
+      } else {
+        ctx.fillStyle = "#111318"; // floor
+        ctx.fillRect(x*px, y*py, px, py);
+        // subtle grid
+        ctx.strokeStyle = "rgba(255,255,255,0.05)";
+        ctx.strokeRect(x*px, y*py, px, py);
       }
     }
-
-    // exit
-    if (state.revealed[state.exit.y][state.exit.x]){
-      ctx.fillStyle = "#c9b458";
-      ctx.fillText("⏚", state.exit.x*px + px*0.25, state.exit.y*py + py*0.75);
-    }
-
-    // enemies
-    ctx.font = `${Math.floor(py*0.75)}px sans-serif`;
-    for (const e of state.enemies){
-      if (!state.revealed[e.y][e.x]) continue;
-      ctx.fillStyle = "#ff6b6b";
-      ctx.fillText("☠", e.x*px + px*0.25, e.y*py + py*0.75);
-    }
-
-    // player
-    ctx.fillStyle = "#7bdff2";
-    ctx.fillText("☺", state.player.x*px + px*0.25, state.player.y*py + py*0.75);
   }
+
+  // glyph sizes (scale handled by transform)
+  ctx.font = `${Math.floor(py*0.78)}px sans-serif`;
+
+  // exit
+  if (state.revealed[state.exit.y][state.exit.x]){
+    ctx.fillStyle = "#c9b458";
+    ctx.fillText("⏚", state.exit.x*px + px*0.25, state.exit.y*py + py*0.75);
+  }
+
+  // enemies
+  for (const e of state.enemies){
+    if (!state.revealed[e.y][e.x]) continue;
+    ctx.fillStyle = "#ff6b6b";
+    ctx.fillText("☠", e.x*px + px*0.25, e.y*py + py*0.75);
+  }
+
+  // player
+  ctx.fillStyle = "#7bdff2";
+  ctx.fillText("☺", state.player.x*px + px*0.25, state.player.y*py + py*0.75);
+}
+
 
   // ===== Save/Load =====
   const LS_KEY = "miniRogueSaveV1";
@@ -560,17 +584,52 @@
 
   // iPhone-friendly controls: swipe to move, tap to wait (on the map)
   let touchStart = null;
+  let pinchStartDist = null;
+  let pinchStartZoom = null;
+  const dist2 = (t1,t2)=>Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
   canvas.addEventListener('touchstart', (e)=>{
     if (!state) return;
+
+    // Pinch start
+    if (e.touches.length === 2){
+      pinchStartDist = dist2(e.touches[0], e.touches[1]);
+      pinchStartZoom = zoom;
+      touchStart = null;
+      e.preventDefault();
+      return;
+    }
+
+    // Swipe/tap start
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     touchStart = { x: t.clientX, y: t.clientY };
     e.preventDefault();
   }, {passive:false});
 
+  // Pinch move (zoom)
+  canvas.addEventListener('touchmove', (e)=>{
+    if (!state) return;
+    if (e.touches.length === 2 && pinchStartDist){
+      const d = dist2(e.touches[0], e.touches[1]);
+      const ratio = d / pinchStartDist;
+      zoom = clamp(pinchStartZoom * ratio, ZOOM_MIN, ZOOM_MAX);
+      render();
+      e.preventDefault();
+    }
+  }, {passive:false});
+
   canvas.addEventListener('touchend', (e)=>{
     if (!state) return;
+
+    // End pinch
+    if (pinchStartDist && e.touches.length < 2){
+      pinchStartDist = null;
+      pinchStartZoom = null;
+    }
+
+    // If pinch was active, don't treat as swipe/tap
     if (!touchStart) return;
+
     const t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : null;
     if (!t) return;
     const dx = t.clientX - touchStart.x;
