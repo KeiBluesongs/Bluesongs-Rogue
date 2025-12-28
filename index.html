@@ -78,10 +78,19 @@ details#logDetails{
   font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
   font-size:14px;
   line-height:1.35;
-  white-space:pre-line; /* keep \n as line breaks */
-  overflow:hidden; /* default (collapsed) */
-  max-height:2.75em; /* ~2 lines */
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2; /* collapsed: show up to 2 lines */
 }
+#log > div{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+details[open] #log{
+  display:block;
+  -webkit-line-clamp:unset;
+  overflow:auto;
+  max-height:min(22svh, 240px);
+}
+
 #logDetails[open] #log{
   max-height:min(22svh, 240px);
   overflow:auto;
@@ -224,7 +233,7 @@ details#codeDetails{
 </head>
 <body>
   <div id="wrap">
-    <h1>Bluesongs Rogue（1ファイル / iPhone対応）</h1>
+    <h1>Bluesongs Rogue</h1>
     <div id="hud">
       <div class="pill" id="statFloor">FLOOR: 1</div>
       <div class="pill" id="statHP">HP: 10/10</div>
@@ -234,7 +243,7 @@ details#codeDetails{
 
     <details id="logDetails">
       <summary id="logSummary">ログ（タップで開く）</summary>
-      <pre id="log">New run started.</pre>
+      <div id="log"></div>
     </details>
 
     <div id="game">
@@ -331,308 +340,11 @@ details#codeDetails{
   };
 
   function log(msg){
-    const p = document.createElement('div');
-    p.textContent = msg;
-    ui.log.appendChild(p);
-    ui.log.scrollTop = ui.log.scrollHeight;
-  }
-
-  // ===== State =====
-  let state = null;
-
-  function newRun(seedStr){
-    const seed = seedStr || (Date.now().toString(36) + Math.random().toString(36).slice(2));
-    state = {
-      version: 1,
-      seed,
-      floor: 1,
-      player: { x: 1, y: 1, hp: 10, maxHp: 10, atk: 2, xp: 0 },
-      enemies: [],
-      map: [],
-      revealed: [],
-      exit: { x: W-2, y: H-2 },
-      turn: 0,
-    };
-    buildFloor();
-    ui.log.innerHTML = '';
-    log("New run started.");
-    render();
-  }
-
-  function buildFloor(){
-    const rng = makeRng(state.seed + ":" + state.floor);
-    // Initialize all walls
-    state.map = Array.from({length:H}, ()=>Array.from({length:W}, ()=>1)); // 1=wall
-    state.revealed = Array.from({length:H}, ()=>Array.from({length:W}, ()=>0));
-
-    // Simple "rooms + corridors"
-    const rooms = [];
-    const roomCount = 8 + randInt(rng, 6);
-    for (let i=0;i<roomCount;i++){
-      const rw = 4 + randInt(rng, 7);
-      const rh = 4 + randInt(rng, 7);
-      const rx = 1 + randInt(rng, W - rw - 2);
-      const ry = 1 + randInt(rng, H - rh - 2);
-      const room = {x:rx,y:ry,w:rw,h:rh, cx:Math.floor(rx+rw/2), cy:Math.floor(ry+rh/2)};
-      // carve room
-      for (let y=ry;y<ry+rh;y++){
-        for (let x=rx;x<rx+rw;x++){
-          state.map[y][x]=0;
-        }
-      }
-      // connect to previous room
-      if (rooms.length){
-        const prev = rooms[rooms.length-1];
-        carveCorridor(prev.cx, prev.cy, room.cx, room.cy, rng);
-      }
-      rooms.push(room);
-    }
-
-    // Place player at first room center, exit at last room center
-    const first = rooms[0];
-    const last = rooms[rooms.length-1];
-    state.player.x = first.cx; state.player.y = first.cy;
-    state.exit.x = last.cx; state.exit.y = last.cy;
-
-    // Place enemies
-    state.enemies = [];
-    const eCount = 6 + Math.floor(state.floor*1.2) + randInt(rng, 4);
-    let tries = 0;
-    while (state.enemies.length < eCount && tries < 2000){
-      tries++;
-      const x = randInt(rng, W);
-      const y = randInt(rng, H);
-      if (isWalkable(x,y) && !(x===state.player.x && y===state.player.y) && !(x===state.exit.x && y===state.exit.y)){
-        // avoid stacking
-        if (!state.enemies.some(e=>e.x===x && e.y===y)){
-          const hp = 2 + Math.floor(state.floor/2) + randInt(rng, 3);
-          const atk = 1 + Math.floor(state.floor/3);
-          state.enemies.push({x,y,hp,atk});
-        }
-      }
-    }
-
-    // Reveal around player
-    revealAround();
-    updateHud();
-    log(`Entered floor ${state.floor}.`);
-    log(`Tip: reach the exit (⏚) to go next floor.`);
-  }
-
-  function carveCorridor(x1,y1,x2,y2,rng){
-    // L-shaped
-    let x=x1,y=y1;
-    const firstHoriz = rng() < 0.5;
-    const step = (a,b)=> a<b ? 1 : (a>b ? -1 : 0);
-    if (firstHoriz){
-      while (x!==x2){ state.map[y][x]=0; x+=step(x,x2); }
-      while (y!==y2){ state.map[y][x]=0; y+=step(y,y2); }
-    } else {
-      while (y!==y2){ state.map[y][x]=0; y+=step(y,y2); }
-      while (x!==x2){ state.map[y][x]=0; x+=step(x,x2); }
-    }
-    state.map[y2][x2]=0;
-  }
-
-  function isInside(x,y){ return x>=0 && y>=0 && x<W && y<H; }
-  function isWalkable(x,y){
-    if (!isInside(x,y)) return false;
-    return state.map[y][x]===0;
-  }
-  function enemyAt(x,y){ return state.enemies.find(e=>e.x===x && e.y===y); }
-
-  function revealAround(){
-    const r = 4;
-    for (let dy=-r; dy<=r; dy++){
-      for (let dx=-r; dx<=r; dx++){
-        const x = state.player.x + dx;
-        const y = state.player.y + dy;
-        if (isInside(x,y)){
-          if (dx*dx + dy*dy <= r*r) state.revealed[y][x]=1;
-        }
-      }
-    }
-  }
-
-  function updateHud(){
-    ui.floor.textContent = `FLOOR: ${state.floor}`;
-    ui.hp.textContent = `HP: ${state.player.hp}/${state.player.maxHp}`;
-    ui.atk.textContent = `ATK: ${state.player.atk}`;
-    ui.seed.textContent = `SEED: ${state.seed.slice(0,10)}…`;
-  }
-
-  function tryMove(dx,dy){
-    if (!state) return;
-    const nx = state.player.x + dx;
-    const ny = state.player.y + dy;
-
-    // attack if enemy
-    const e = enemyAt(nx,ny);
-    if (e){
-      attackEnemy(e);
-      endTurn();
-      return;
-    }
-
-    if (isWalkable(nx,ny)){
-      state.player.x = nx;
-      state.player.y = ny;
-      revealAround();
-
-      if (nx===state.exit.x && ny===state.exit.y){
-        log("You reached the exit. Press 'Next Floor' (or N).");
-      }
-      endTurn();
-      return;
-    }
-    // bump wall
-    log("Bumped into a wall.");
-  }
-
-  function waitTurn(){
-    if (!state) return;
-    endTurn();
-  }
-
-  function attackEnemy(e){
-    e.hp -= state.player.atk;
-    log(`You hit enemy for ${state.player.atk}. (enemy HP ${Math.max(0,e.hp)})`);
-    if (e.hp<=0){
-      log("Enemy defeated.");
-      state.player.xp += 1;
-      // small heal chance
-      if (state.player.xp % 3 === 0){
-        state.player.maxHp += 1;
-        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 2);
-        state.player.atk += (state.player.xp % 6 === 0) ? 1 : 0;
-        log("Level up-ish: +MaxHP (and sometimes +ATK).");
-      }
-      state.enemies = state.enemies.filter(x=>x!==e);
-    }
-  }
-
-  function endTurn(){
-    state.turn++;
-    enemiesAct();
-    // check death
-    if (state.player.hp<=0){
-      log("YOU DIED. Press New Run.");
-    }
-    updateHud();
-    render();
-  }
-
-  function enemiesAct(){
-    // very simple: each enemy moves 1 step toward player if in revealed area; attacks if adjacent
-    for (const e of state.enemies){
-      // If adjacent, attack
-      const dist = Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y);
-      if (dist===1){
-        state.player.hp -= e.atk;
-        log(`Enemy hits you for ${e.atk}. (HP ${Math.max(0,state.player.hp)})`);
-        continue;
-      }
-
-      // chase only if player is "seen" (within 6 tiles)
-      const dx = state.player.x - e.x;
-      const dy = state.player.y - e.y;
-      if (dx*dx + dy*dy > 36) continue;
-
-      const stepX = dx===0 ? 0 : (dx>0 ? 1 : -1);
-      const stepY = dy===0 ? 0 : (dy>0 ? 1 : -1);
-
-      // choose axis that reduces distance and is walkable
-      const options = [];
-      if (stepX!==0) options.push([stepX,0]);
-      if (stepY!==0) options.push([0,stepY]);
-      // fallback shuffle-ish
-      if (options.length===2 && Math.random()<0.5) options.reverse();
-
-      for (const [mx,my] of options){
-        const nx = e.x + mx, ny = e.y + my;
-        if ((nx===state.player.x && ny===state.player.y)) continue;
-        if (isWalkable(nx,ny) && !enemyAt(nx,ny) && !(nx===state.exit.x && ny===state.exit.y)){
-          e.x=nx; e.y=ny;
-          break;
-        }
-      }
-    }
-  }
-
-// ===== Render =====
-function render(){
-  // reset transform
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  if (!state) return;
-
-  const base = canvas.width / W;           // tile size at zoom=1
-  const mapW = W * base * zoom;
-  const mapH = H * base * zoom;
-
-  // center on player (clamped so you don't see empty space at edges)
-  const targetX = canvas.width/2 - (state.player.x + 0.5) * base * zoom;
-  const targetY = canvas.height/2 - (state.player.y + 0.5) * base * zoom;
-  const minX = Math.min(0, canvas.width - mapW);
-  const minY = Math.min(0, canvas.height - mapH);
-  const offX = clamp(targetX, minX, 0);
-  const offY = clamp(targetY, minY, 0);
-
-  // Apply zoom + pan
-  ctx.setTransform(zoom, 0, 0, zoom, offX, offY);
-
-  const px = base;
-  const py = base;
-
-  // tiles
-  for (let y=0;y<H;y++){
-    for (let x=0;x<W;x++){
-      const seen = state.revealed[y][x];
-      if (!seen){
-        // fog
-        ctx.fillStyle = "#0b0c10";
-        ctx.fillRect(x*px, y*py, px, py);
-        continue;
-      }
-      if (state.map[y][x]===1){
-        ctx.fillStyle = "#1b1e28"; // wall
-        ctx.fillRect(x*px, y*py, px, py);
-      } else {
-        ctx.fillStyle = "#111318"; // floor
-        ctx.fillRect(x*px, y*py, px, py);
-        // subtle grid
-        ctx.strokeStyle = "rgba(255,255,255,0.05)";
-        ctx.strokeRect(x*px, y*py, px, py);
-      }
-    }
-  }
-
-  // glyph sizes (scale handled by transform)
-  const glyphSize = Math.floor(py * 0.90);
-  ctx.font = `${glyphSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const gx = (x) => x * px + px * 0.5;
-  const gy = (y) => y * py + py * 0.55; // slight downward tweak for emoji optical centering
-
-  // exit
-  if (state.revealed[state.exit.y][state.exit.x]){
-    ctx.fillStyle = "#c9b458";
-    ctx.fillText("⏚", gx(state.exit.x), gy(state.exit.y));
-  }
-
-  // enemies
-  for (const e of state.enemies){
-    if (!state.revealed[e.y][e.x]) continue;
-    ctx.fillStyle = "#ff6b6b";
-    ctx.fillText("☠", gx(e.x), gy(e.y));
-  }
-
-  // player
-  ctx.fillStyle = "#7bdff2";
-  ctx.fillText("☺", gx(state.player.x), gy(state.player.y));
+  const line = document.createElement("div");
+  line.textContent = msg;
+  ui.log.appendChild(line);
+  // keep newest visible
+  ui.log.scrollTop = ui.log.scrollHeight;
 }
 
 
