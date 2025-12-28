@@ -32,7 +32,7 @@
                   radial-gradient(1200px 900px at 50% 110%, rgba(255,255,255,.06), transparent 55%),
                   var(--bg);
       color: var(--text);
-      overflow: hidden; /* 1画面固定 */
+      overflow: auto; /* logが伸びても画面が切れないように */
       -webkit-text-size-adjust: 100%;
       touch-action: manipulation;
     }
@@ -73,6 +73,8 @@
       color: var(--muted);
       font-size: 18px;
       white-space: nowrap;
+	      overflow: hidden;
+	      text-overflow: ellipsis;
       flex: 0 0 auto;
     }
     @media (max-width: 480px){
@@ -132,7 +134,7 @@
 
     #gameCard{
       flex: 1;
-      min-height: 0;
+      min-height: 34svh;
       border-radius: var(--radius);
       border: 1px solid var(--stroke);
       background: rgba(255,255,255,.02);
@@ -183,7 +185,14 @@
 
     /* iPhoneのダブルタップズーム抑制（必要最低限） */
     *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
-  </style>
+  
+/* Prevent SEED pill from getting cut off on narrow screens */
+#seedPill{flex:2 1 180px;}
+
+/* Hide on-screen D-pad when a physical keyboard/mouse is likely */
+@media (pointer:fine){ #dpad{display:none !important;} }
+
+</style>
 </head>
 <body>
   <div id="wrap">
@@ -456,8 +465,9 @@
     const wpx = cv.width, hpx = cv.height;
     ctx.clearRect(0,0,wpx,hpx);
 
-    // base tile size to show whole map at zoom=1 (fit shorter side)
-    const base = Math.min(wpx / W, hpx / H);
+    // Tile size: show ~13 tiles across the smaller canvas dimension at zoom=1
+    const tilesAcross = 13;
+    const base = Math.min(wpx, hpx) / tilesAcross;
     const ts = base * state.zoom;
 
     // camera center on player
@@ -729,76 +739,75 @@
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
   function center(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
 
-  cv.addEventListener("pointerdown", (e)=>{
+  cv.addEventListener("pointerdown",(e)=>{
+    // Track pointers for swipe + pinch. We keep BOTH the initial down position (sx/sy)
+    // and the latest position (x/y). (Previously we overwrote start, breaking swipes.)
+    if(e.pointerType==="mouse" && e.button!==0) return;
     cv.setPointerCapture(e.pointerId);
-    pointerState.active.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    pointerState.moved = false;
+    pointers.set(e.pointerId,{sx:e.clientX,sy:e.clientY,x:e.clientX,y:e.clientY});
+  },{passive:false});
 
-    if(pointerState.active.size===2){
-      const [p1,p2] = Array.from(pointerState.active.values());
-      pointerState.startCenter = center(p1,p2);
-      pointerState.lastCenter = pointerState.startCenter;
-      pointerState.startDist = dist(p1,p2);
-      pointerState.startZoom = state.zoom;
-    }
-  });
+  cv.addEventListener("pointermove",(e)=>{
+    const p = pointers.get(e.pointerId);
+    if(!p) return;
 
-  cv.addEventListener("pointermove", (e)=>{
-    if(!pointerState.active.has(e.pointerId)) return;
-    const prev = pointerState.active.get(e.pointerId);
-    const cur = {x:e.clientX, y:e.clientY};
-    pointerState.active.set(e.pointerId, cur);
+    // update latest
+    p.x = e.clientX; p.y = e.clientY;
+    pointers.set(e.pointerId,p);
 
-    if(pointerState.active.size===1){
-      // swipe detect: measure from initial down to now when released
-      const dx = cur.x - prev.x, dy = cur.y - prev.y;
-      if(Math.abs(dx) + Math.abs(dy) > 14) pointerState.moved = true;
-      // no continuous drag (game is turn-based) -> just mark moved
+    const arr = [...pointers.values()];
+    if(arr.length===2){
+      // pinch zoom
+      const [a,b]=arr;
+      const dist=Math.hypot(a.x-b.x,a.y-b.y);
+      if(!pinch.active){
+        pinch.active=true;
+        pinch.startDist=dist;
+        pinch.startZoom=state.zoom;
+        pinch.cx=(a.x+b.x)/2; pinch.cy=(a.y+b.y)/2;
+      }else{
+        const ratio=dist/Math.max(10,pinch.startDist);
+        state.zoom=clamp(pinch.startZoom*ratio,0.6,4.0);
+        render();
+      }
+      e.preventDefault();
       return;
     }
 
-    if(pointerState.active.size===2){
-      const [p1,p2] = Array.from(pointerState.active.values());
-      const c = center(p1,p2);
-      const d = dist(p1,p2);
-      if(pointerState.startDist > 0){
-        const scale = d / pointerState.startDist;
-        const nz = clamp(pointerState.startZoom * scale, 0.7, 3.0);
-        if(Math.abs(nz - state.zoom) > 0.001){
-          state.zoom = nz;
-          pointerState.moved = true;
-          render();
-        }
+    // single pointer -> just prevent page scroll while dragging on the canvas
+    e.preventDefault();
+  },{passive:false});
+
+  cv.addEventListener("pointerup",(e)=>{
+    const p = pointers.get(e.pointerId);
+    pointers.delete(e.pointerId);
+
+    // reset pinch when fewer than 2 pointers remain
+    if(pointers.size<2) pinch.active=false;
+
+    if(!p) return;
+
+    // swipe direction uses initial down position (sx/sy) to final (x/y)
+    const dx = p.x - p.sx;
+    const dy = p.y - p.sy;
+    const dist = Math.hypot(dx,dy);
+    if(dist>22){
+      if(Math.abs(dx)>Math.abs(dy)){
+        tryMove(dx>0?1:-1,0);
+      }else{
+        tryMove(0,dy>0?1:-1);
       }
-      pointerState.lastCenter = c;
+    }else{
+      // small tap = wait
+      waitTurn();
     }
-  });
+    e.preventDefault();
+  },{passive:false});
 
-  cv.addEventListener("pointerup", (e)=>{
-    if(!pointerState.active.has(e.pointerId)) return;
-    const start = pointerState.active.get(e.pointerId);
-    const end = {x:e.clientX, y:e.clientY};
-    pointerState.active.delete(e.pointerId);
-
-    if(pointerState.active.size===0){
-      // swipe to move (only if not pinch)
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      if(Math.abs(dx) + Math.abs(dy) > 30){
-        // direction
-        if(Math.abs(dx) > Math.abs(dy)){
-          tryMove(dx>0?1:-1, 0);
-        }else{
-          tryMove(0, dy>0?1:-1);
-        }
-        pointerState.moved = true;
-      }
-    }
-  });
-
-  cv.addEventListener("pointercancel", (e)=>{
-    pointerState.active.delete(e.pointerId);
-  });
+  cv.addEventListener("pointercancel",(e)=>{
+    pointers.delete(e.pointerId);
+    if(pointers.size<2) pinch.active=false;
+  },{passive:false});
 
   // ---------- Actions ----------
   function nextFloor(){
