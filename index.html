@@ -2,591 +2,857 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Bluesongs Rogue (Offline)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Bluesongs Rogue</title>
   <style>
-:root{
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
-  --bg:#0e0f12; --panel:#12141a; --panel2:#1a1c22; --border:#2a2d37; --text:#e8e8e8;
-  --gap:10px;
-}
-*{ box-sizing:border-box; }
-body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  overscroll-behavior:none;
-  /* safe area padding */
-  padding:
-    calc(12px + env(safe-area-inset-top, 0px))
-    calc(16px + env(safe-area-inset-right, 0px))
-    calc(16px + env(safe-area-inset-bottom, 0px))
-    calc(16px + env(safe-area-inset-left, 0px));
-}
-h1{ margin:0 0 4px; font-size:18px; font-weight:700; letter-spacing:.2px; }
+    :root{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
+      color-scheme: dark;
+      --bg:#05070b;
+      --card:#0b1018;
+      --card2:#0a0f17;
+      --stroke: rgba(255,255,255,.14);
+      --stroke2: rgba(255,255,255,.08);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.68);
+      --muted2: rgba(255,255,255,.52);
+      --accent: rgba(145,177,255,.95);
+      --radius: 18px;
+      --pad: 14px;
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --safeT: env(safe-area-inset-top, 0px);
+      --safeB: env(safe-area-inset-bottom, 0px);
+      --safeL: env(safe-area-inset-left, 0px);
+      --safeR: env(safe-area-inset-right, 0px);
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 900px at 50% -10%, rgba(80,120,255,.18), transparent 55%),
+                  radial-gradient(1200px 900px at 50% 110%, rgba(255,255,255,.06), transparent 55%),
+                  var(--bg);
+      color: var(--text);
+      overflow: hidden; /* 1画面固定 */
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
 
-#wrap{
-  max-width:980px;
-  margin:0 auto;
-  height:100%;
-  display:flex;
-  flex-direction:column;
-  gap:var(--gap);
-}
+    #wrap{
+      height: 100svh;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: calc(var(--pad) + var(--safeT)) calc(var(--pad) + var(--safeR)) calc(var(--pad) + var(--safeB)) calc(var(--pad) + var(--safeL));
+      box-sizing: border-box;
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
-#hud{
-  display:grid;
-  grid-template-columns:auto auto auto 1fr;
-  gap:10px;
-  align-items:center;
-  margin:10px 0 8px;
-}
-.pill{
-  padding:6px 10px;
-  border-radius:999px;
-  background:var(--panel2);
-  border:1px solid var(--border);
-  font-size:13px;
-}
-#statSeed{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    h1{
+      margin: 2px 4px 6px;
+      font-size: 38px;
+      letter-spacing: .3px;
+      font-weight: 750;
+    }
+    @media (max-width: 480px){
+      h1{ font-size: 34px; }
+    }
 
-details#logDetails{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:10px;
-  padding:8px;
-  max-width:100%;
-  overflow:hidden; /* never spill over the game area */
-}
-#logDetails > summary{
-  list-style:none;
-  cursor:pointer;
-  user-select:none;
-  font-size:12px;
-  opacity:.85;
-}
-#logDetails > summary::-webkit-details-marker{ display:none; }
-#logDetails > summary::before{ content:"▶ "; }
-#logDetails[open] > summary::before{ content:"▼ "; }
+    .pillRow{
+      display:flex;
+      gap:10px;
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+    .pill{
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid var(--stroke);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+      color: var(--muted);
+      font-size: 18px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    @media (max-width: 480px){
+      .pill{ font-size: 16px; padding: 10px 14px; }
+    }
+    .pill.seed{ max-width: 38vw; overflow:hidden; text-overflow: ellipsis; }
 
-#log{
-  margin:6px 0 0;
-  padding:8px 10px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.12);
-  background:rgba(255,255,255,0.04);
-  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-  font-size:14px;
-  line-height:1.35;
-  overflow:hidden;
-  display:-webkit-box;
-  -webkit-box-orient:vertical;
-  -webkit-line-clamp:2; /* collapsed: show up to 2 lines */
-}
-#log > div{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-details[open] #log{
-  display:block;
-  -webkit-line-clamp:unset;
-  overflow:auto;
-  max-height:min(22svh, 240px);
-}
+    details{
+      border-radius: var(--radius);
+      border: 1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    summary{
+      list-style:none;
+      cursor:pointer;
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 16px;
+      user-select: none;
+    }
+    summary::-webkit-details-marker{ display:none; }
+    summary:before{
+      content:"▶";
+      display:inline-block;
+      margin-right: 8px;
+      transform: translateY(-1px);
+      color: var(--muted2);
+    }
+    details[open] summary:before{ content:"▼"; }
 
-#logDetails[open] #log{
-  max-height:min(22svh, 240px);
-  overflow:auto;
-}
+    #logBody{
+      padding: 0 12px 12px;
+    }
 
-#game{
-  flex:1;
-  min-height:0;
-  display:flex;
-  flex-direction:column;
-  gap:var(--gap);
-}
-#canvasWrap{
-  flex:1;
-  min-height:0;
-  display:flex;
-  align-items:center;
-  justify-content:flex-end; /* push canvas down for thumb reach */
-  flex-direction:column;
-}
-canvas{
-  width:100%;
-  height:auto;
-  aspect-ratio:1/1;
-  background:#0b0c10;
-  border:1px solid var(--border);
-  border-radius:10px;
-  touch-action:none; /* we handle swipe/pinch ourselves */
-  max-width:620px;
-  max-height:58svh;
-}
+    #logLines{
+      border-radius: 14px;
+      border: 1px solid var(--stroke2);
+      background: rgba(255,255,255,.02);
+      padding: 10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      font-size: 16px;
+      line-height: 1.35;
+      color: rgba(255,255,255,.88);
+      overflow: hidden;
+    }
+    /* 閉じてる時は2行だけ（divを2個だけ表示） */
+    #logDetails:not([open]) #logLines div:nth-child(n+3){ display:none; }
+    #logDetails:not([open]) #logLines{ max-height: calc(1.35em * 2 + 20px); } /* 2行+padding */
 
-#panel{
-  flex:0 0 auto;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.row{ display:flex; flex-wrap:wrap; gap:8px; }
-button{
-  background:#1e2230;
-  color:#fff;
-  border:1px solid #3a3f50;
-  border-radius:10px;
-  padding:10px 12px;
-  font-size:14px;
-}
-button:active{ transform:translateY(1px); }
+    /* 開いてる時は一定高さでスクロール */
+    #logDetails[open] #logLines{
+      max-height: 18svh;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
 
-#helpToggle{
-  font-size:12px;
-  opacity:.8;
-  padding:0 2px;
-}
-#helpDetails{
-  background:transparent;
-  border:none;
-  padding:0;
-}
-#helpDetails summary{ list-style:none; cursor:pointer; user-select:none; }
-#helpDetails summary::-webkit-details-marker{ display:none; }
-#helpBox{
-  margin-top:6px;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:10px;
-  padding:10px 12px;
-  font-size:13px;
-  line-height:1.35;
-}
+    #gameCard{
+      flex: 1;
+      min-height: 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,.02);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
 
-@media (max-width: 859px){
-  body{ height:100svh; overflow:hidden; }
-  h1{ font-size:20px; }
-  /* lock one screen */
-  #wrap{ height:100%; }
-  /* keep HUD in one row: 3 small + seed flexible */
-  #hud{
-    display:grid;
-    grid-template-columns:auto auto auto 1fr;
-    gap:8px;
-    align-items:center;
-  }
-  .pill{ font-size:13px; padding:7px 10px; }
-  #statSeed{ min-width:0; }
-  canvas{ max-height:52svh; }
-  #log{ max-height:2.75em; } /* slightly shorter on mobile */
-  #logDetails[open] #log{ max-height:18svh; }
+    canvas{
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: radial-gradient(800px 800px at 50% 40%, rgba(255,255,255,.03), transparent 60%),
+                  rgba(0,0,0,.25);
+      touch-action: none; /* pinch/drag inside canvas */
+    }
 
-  /* --- iPhone/Small screen: lock viewport, respect safe areas, avoid scroll --- */
-  body{
-    position:fixed;
-    inset:0;
-    overflow:hidden;
-  }
-  #wrap{
-    height:100%;
-    padding:calc(env(safe-area-inset-top) + 10px)
-            calc(env(safe-area-inset-right) + 12px)
-            calc(env(safe-area-inset-bottom) + 14px)
-            calc(env(safe-area-inset-left) + 12px);
-    box-sizing:border-box;
-    overflow:hidden;
-  }
-  /* Swipe is primary on iPhone; hide D-pad to free space */
-  #dpad{ display:none !important; }
-  /* Make HUD pills a bit tighter so SEED fits on same row */
-  .pill{ padding:10px 12px; font-size:13px; }
-  #statSeed{ font-size:12px; padding:10px 12px; }
-}
+    .btnRow{
+      display:flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding-top: 2px;
+    }
+    button{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(80,110,180,.22), rgba(255,255,255,.04));
+      color: rgba(255,255,255,.9);
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-size: 20px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+      min-width: 140px;
+    }
+    button:active{ transform: translateY(1px); filter: brightness(1.05); }
 
-details#codeDetails{
-  background:transparent;
-  border:none;
-  padding:0;
-}
-#codeDetails summary.hint{
-  list-style:none;
-  cursor:pointer;
-  user-select:none;
-  font-size:12px;
-  opacity:.85;
-  padding:0 2px; /* keep away from rounded corners */
-}
-#codeDetails summary.hint::-webkit-details-marker{ display:none; }
-#codeDetails .hint{ padding:0 2px; }
-#codeBox{
-  width:100%;
-  min-height:78px;
-  resize:none;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:10px;
-  padding:10px 12px;
-  color:var(--text);
-  font-size:13px;
-  line-height:1.35;
-}
-</style>
+    #hint{
+      color: var(--muted2);
+      font-size: 15px;
+      text-align: center;
+      padding-bottom: 2px;
+    }
+
+    /* iPhoneのダブルタップズーム抑制（必要最低限） */
+    *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
+  </style>
 </head>
 <body>
   <div id="wrap">
     <h1>Bluesongs Rogue</h1>
-    <div id="hud">
-      <div class="pill" id="statFloor">FLOOR: 1</div>
-      <div class="pill" id="statHP">HP: 10/10</div>
-      <div class="pill" id="statATK">ATK: 2</div>
-      <div class="pill" id="statSeed">SEED: -</div>
+
+    <div class="pillRow" aria-label="stats">
+      <div class="pill" id="pillFloor">FLOOR: 1</div>
+      <div class="pill" id="pillHp">HP: 10/10</div>
+      <div class="pill" id="pillAtk">ATK: 2</div>
+      <div class="pill seed" id="pillSeed" title="seed">SEED: -</div>
     </div>
 
     <details id="logDetails">
-      <summary id="logSummary">ログ（タップで開く）</summary>
-      <div id="log"></div>
+      <summary>ログ（タップで開く）</summary>
+      <div id="logBody">
+        <div id="logLines"></div>
+      </div>
     </details>
 
-    <div id="game">
-      <div id="canvasWrap">
-        <canvas id="cv" width="620" height="620" aria-label="game"></canvas>
-      </div>
-
-      <div id="panel">
-        <div class="row">
-          <button id="btnNew">New Run</button>
-          <button id="btnNext">Next Floor</button>
-          <button id="btnSave">Save</button>
-          <button id="btnLoad">Load</button>
-        </div>
-
-        <div class="row">
-          <button id="btnExport">Export Code</button>
-          <button id="btnImport">Import Code</button>
-          <button id="btnHelp">Help</button>
-        </div>
-
-        <div id="dpad" aria-label="dpad">
-          <div class="empty">.</div><button data-move="U">▲</button><div class="empty">.</div>
-          <button data-move="L">◀</button><button data-move="W">●</button><button data-move="R">▶</button>
-          <div class="empty">.</div><button data-move="D">▼</button><div class="empty">.</div>
-        </div>
-        <details id="codeDetails">
-          <summary class="hint">操作ヘルプ / Export・Import（タップで開く）</summary>
-          <div class="hint" style="margin-top:8px;">
-            PC: 矢印/WASDで移動、Spaceで攻撃、Nで次階。<br/>
-            iPhone: <b>スワイプ</b>で移動、<b>タップ</b>で待機(ターン進行)、<b>ピンチ</b>でズーム。
-          </div>
-          <textarea id="codeBox" placeholder="Export/Import code がここに出ます"></textarea>
-        </details>
-      </div>
+    <div id="gameCard">
+      <canvas id="cv" width="720" height="720" aria-label="dungeon"></canvas>
     </div>
+
+    <div class="btnRow">
+      <button id="btnNew">New Run</button>
+      <button id="btnNext">Next Floor</button>
+      <button id="btnSave">Save</button>
+      <button id="btnLoad">Load</button>
+      <button id="btnExport">Export Code</button>
+      <button id="btnImport">Import Code</button>
+      <button id="btnHelp">Help</button>
+    </div>
+
+    <div id="hint">PC: 矢印/WASDで移動、Spaceで攻撃、Nで次階。 iPhone: スワイプで移動、タップで待機、ピンチでズーム。</div>
   </div>
 
 <script>
 (() => {
-  // ===== Utilities (seeded RNG) =====
-  function xmur3(str){
-    let h = 1779033703 ^ str.length;
-    for (let i=0; i<str.length; i++){
-      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
+  "use strict";
+
+  // ---------- Utils ----------
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function hashStrToU32(str){
+    // FNV-1a
+    let h = 2166136261>>>0;
+    for(let i=0;i<str.length;i++){
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619)>>>0;
     }
-    return function(){
-      h = Math.imul(h ^ (h >>> 16), 2246822507);
-      h = Math.imul(h ^ (h >>> 13), 3266489909);
-      h ^= (h >>> 16);
-      return h >>> 0;
-    };
-  }
-  function sfc32(a,b,c,d){
-    return function(){
-      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
-      let t = (a + b) | 0;
-      a = b ^ (b >>> 9);
-      b = (c + (c << 3)) | 0;
-      c = (c << 21) | (c >>> 11);
-      d = (d + 1) | 0;
-      t = (t + d) | 0;
-      c = (c + t) | 0;
-      return (t >>> 0) / 4294967296;
-    }
+    return h>>>0;
   }
   function makeRng(seedStr){
-    const seed = xmur3(seedStr);
-    return sfc32(seed(), seed(), seed(), seed());
-  }
-  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
-  const randInt=(rng, n)=>Math.floor(rng()*n);
-
-  // ===== Game constants =====
-  const W = 31, H = 31;
-  const canvas = document.getElementById('cv');
-  const ctx = canvas.getContext('2d');
-
-  // Zoom (pinch on iPhone). 1.0 = whole map fits; >1 zooms in.
-  const IS_MOBILE = matchMedia("(max-width: 859px)").matches;
-  let zoom = IS_MOBILE ? 1.6 : 1.0;
-  const ZOOM_MIN = 0.9;
-  const ZOOM_MAX = 2.8;
-
-  const ui = {
-    floor: document.getElementById('statFloor'),
-    hp: document.getElementById('statHP'),
-    atk: document.getElementById('statATK'),
-    seed: document.getElementById('statSeed'),
-    log: document.getElementById('log'),
-    code: document.getElementById('codeBox'),
-    codeDetails: document.getElementById('codeDetails'),
-  };
-
-  function log(msg){
-  const line = document.createElement("div");
-  line.textContent = msg;
-  ui.log.appendChild(line);
-  // keep newest visible
-  ui.log.scrollTop = ui.log.scrollHeight;
-}
-
-
-  // ===== Save/Load =====
-  const LS_KEY = "miniRogueSaveV1";
-
-  function saveLocal(){
-    if (!state) return;
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
-    log("Saved to this browser.");
-  }
-
-  function loadLocal(){
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw){
-      log("No save found in this browser.");
-      return;
-    }
-    try{
-      const obj = JSON.parse(raw);
-      if (!obj || obj.version !== 1) throw new Error("bad save");
-      state = obj;
-      log("Loaded from this browser.");
-      updateHud();
-      render();
-    } catch(e){
-      log("Load failed (corrupted save).");
-    }
-  }
-
-  // ===== Export/Import Code (copy/paste sync) =====
-  // Simple base64 encode/decode for UTF-8
-  function b64encode(str){
-    const bytes = new TextEncoder().encode(str);
-    let bin = "";
-    for (const b of bytes) bin += String.fromCharCode(b);
-    return btoa(bin);
-  }
-  function b64decode(b64){
-    const bin = atob(b64);
-    const bytes = new Uint8Array([...bin].map(ch=>ch.charCodeAt(0)));
-    return new TextDecoder().decode(bytes);
-  }
-
-  function exportCode(){
-    if (!state) return;
-    // We export minimal necessary state
-    const payload = {
-      v: 1,
-      seed: state.seed,
-      floor: state.floor,
-      player: state.player,
-      enemies: state.enemies,
-      map: state.map,
-      revealed: state.revealed,
-      exit: state.exit,
-      turn: state.turn,
+    let a = (hashStrToU32(seedStr) || 1)>>>0;
+    return function(){
+      // xorshift32
+      a ^= a << 13; a >>>= 0;
+      a ^= a >>> 17; a >>>= 0;
+      a ^= a << 5; a >>>= 0;
+      return (a >>> 0) / 4294967296;
     };
-    const json = JSON.stringify(payload);
-    const code = b64encode(json);
-    if (ui.codeDetails) ui.codeDetails.open = true;
-    ui.code.value = code;
-    ui.code.focus();
-    ui.code.select();
-    log("Exported code (copied if you paste it somewhere).");
+  }
+  function choice(rng, arr){ return arr[(rng()*arr.length)|0]; }
+
+  // ---------- UI Elements ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d", { alpha: false });
+  const pillFloor = document.getElementById("pillFloor");
+  const pillHp = document.getElementById("pillHp");
+  const pillAtk = document.getElementById("pillAtk");
+  const pillSeed = document.getElementById("pillSeed");
+  const logLines = document.getElementById("logLines");
+  const logDetails = document.getElementById("logDetails");
+
+  // Buttons
+  const btnNew = document.getElementById("btnNew");
+  const btnNext = document.getElementById("btnNext");
+  const btnSave = document.getElementById("btnSave");
+  const btnLoad = document.getElementById("btnLoad");
+  const btnExport = document.getElementById("btnExport");
+  const btnImport = document.getElementById("btnImport");
+  const btnHelp = document.getElementById("btnHelp");
+
+  // Prevent iOS double-tap zoom on buttons
+  document.querySelectorAll("button, summary").forEach(el => {
+    el.addEventListener("touchend", (e)=>{ e.preventDefault(); el.click(); }, {passive:false});
+  });
+
+  // ---------- Game State ----------
+  const W = 41, H = 41; // odd for walls
+  let state = null;
+
+  function newState(seed){
+    return {
+      seed,
+      floor: 1,
+      atk: 2,
+      maxHp: 10,
+      hp: 10,
+      zoom: 1.0,
+      map: new Uint8Array(W*H),       // 0 wall, 1 floor
+      seen: new Uint8Array(W*H),      // 0 unseen, 1 seen
+      vis: new Uint8Array(W*H),       // 0 not visible, 1 visible (per turn)
+      rooms: [],
+      player: {x:1,y:1},
+      exit: {x:1,y:1},
+      enemies: [], // {x,y,hp}
+      turn: 0,
+      lastMoveDir: {x:0,y:1}
+    };
   }
 
-  function importCode(){
-    if (ui.codeDetails) ui.codeDetails.open = true;
-    const code = ui.code.value.trim();
-    if (!code){
-      log("Paste code into the box first.");
-      return;
-    }
-    try{
-      const json = b64decode(code);
-      const payload = JSON.parse(json);
-      if (!payload || payload.v !== 1) throw new Error("bad");
-      state = {
-        version: 1,
-        seed: payload.seed,
-        floor: payload.floor,
-        player: payload.player,
-        enemies: payload.enemies,
-        map: payload.map,
-        revealed: payload.revealed,
-        exit: payload.exit,
-        turn: payload.turn,
-      };
-      log("Imported code successfully.");
-      updateHud();
-      render();
-    } catch(e){
-      log("Import failed (invalid code).");
+  function idx(x,y){ return y*W + x; }
+  function inBounds(x,y){ return x>=0 && y>=0 && x<W && y<H; }
+  function isFloor(x,y){ return inBounds(x,y) && state.map[idx(x,y)]===1; }
+
+  // ---------- Dungeon Generation (rooms + corridors) ----------
+  function carveRect(x,y,w,h){
+    for(let yy=y; yy<y+h; yy++){
+      for(let xx=x; xx<x+w; xx++){
+        if(inBounds(xx,yy)) state.map[idx(xx,yy)] = 1;
+      }
     }
   }
-
-  function nextFloor(){
-    if (!state) return;
-    // allow only if at exit
-    if (state.player.x!==state.exit.x || state.player.y!==state.exit.y){
-      log("You are not on the exit yet (⏚).");
-      return;
+  function rectsOverlap(a,b){
+    return !(a.x+a.w <= b.x || b.x+b.w <= a.x || a.y+a.h <= b.y || b.y+b.h <= a.y);
+  }
+  function centerOf(r){ return {x: (r.x + (r.w/2)|0), y: (r.y + (r.h/2)|0)}; }
+  function carveCorridor(ax,ay,bx,by, rng){
+    // L字: ランダムに順序
+    if(rng() < 0.5){
+      carveH(ax,bx,ay);
+      carveV(ay,by,bx);
+    }else{
+      carveV(ay,by,ax);
+      carveH(ax,bx,by);
     }
-    // small reward
-    state.player.hp = Math.min(state.player.maxHp, state.player.hp + 2);
-    state.floor += 1;
-    buildFloor();
+  }
+  function carveH(x1,x2,y){
+    const a = Math.min(x1,x2), b = Math.max(x1,x2);
+    for(let x=a; x<=b; x++) if(inBounds(x,y)) state.map[idx(x,y)] = 1;
+  }
+  function carveV(y1,y2,x){
+    const a = Math.min(y1,y2), b = Math.max(y1,y2);
+    for(let y=a; y<=b; y++) if(inBounds(x,y)) state.map[idx(x,y)] = 1;
+  }
+
+  function buildFloor(){
+    state.map.fill(0);
+    state.seen.fill(0);
+    state.vis.fill(0);
+    state.rooms = [];
+    state.enemies = [];
+
+    const rng = makeRng(state.seed + "::" + state.floor);
+
+    const maxRooms = 10;
+    const minSize = 5, maxSize = 9;
+    for(let i=0;i<maxRooms;i++){
+      const w = (minSize + (rng()*(maxSize-minSize+1)|0)) | 0;
+      const h = (minSize + (rng()*(maxSize-minSize+1)|0)) | 0;
+      const x = 1 + ((rng()*(W - w - 2))|0);
+      const y = 1 + ((rng()*(H - h - 2))|0);
+      const r = {x,y,w,h};
+      let ok = true;
+      for(const o of state.rooms){
+        if(rectsOverlap({x:x-1,y:y-1,w:w+2,h:h+2}, o)){ ok=false; break; }
+      }
+      if(!ok) continue;
+      carveRect(x,y,w,h);
+      if(state.rooms.length){
+        const c1 = centerOf(choice(rng, state.rooms));
+        const c2 = centerOf(r);
+        carveCorridor(c1.x,c1.y,c2.x,c2.y, rng);
+      }
+      state.rooms.push(r);
+    }
+
+    if(state.rooms.length === 0){
+      // fallback: single room
+      carveRect(6,6,W-12,H-12);
+      state.rooms.push({x:6,y:6,w:W-12,h:H-12});
+    }
+
+    // player start in first room center
+    const start = centerOf(state.rooms[0]);
+    state.player.x = start.x; state.player.y = start.y;
+
+    // exit in farthest room center
+    let far = start, bestD = -1, farRoom = state.rooms[0];
+    for(const r of state.rooms){
+      const c = centerOf(r);
+      const d = Math.abs(c.x-start.x)+Math.abs(c.y-start.y);
+      if(d>bestD){ bestD=d; far=c; farRoom=r; }
+    }
+    state.exit.x = far.x; state.exit.y = far.y;
+
+    // enemies: place in rooms (avoid start room)
+    const enemyCount = clamp(4 + state.floor, 4, 10);
+    for(let i=0;i<enemyCount;i++){
+      const r = choice(rng, state.rooms.slice(1).length? state.rooms.slice(1): state.rooms);
+      const ex = r.x + 1 + ((rng()*(r.w-2))|0);
+      const ey = r.y + 1 + ((rng()*(r.h-2))|0);
+      if((ex===state.player.x && ey===state.player.y) || (ex===state.exit.x && ey===state.exit.y)) { i--; continue; }
+      if(state.enemies.some(e=>e.x===ex && e.y===ey)) { i--; continue; }
+      state.enemies.push({x:ex,y:ey,hp: 2 + (state.floor/2|0)});
+    }
+
+    computeFov();
     render();
   }
 
-  // ===== Input handling =====
-  function keyHandler(ev){
-    if (!state) return;
-    if (ev.key === "ArrowUp" || ev.key.toLowerCase()==="w") { ev.preventDefault(); tryMove(0,-1); }
-    else if (ev.key === "ArrowDown" || ev.key.toLowerCase()==="s") { ev.preventDefault(); tryMove(0,1); }
-    else if (ev.key === "ArrowLeft" || ev.key.toLowerCase()==="a") { ev.preventDefault(); tryMove(-1,0); }
-    else if (ev.key === "ArrowRight" || ev.key.toLowerCase()==="d") { ev.preventDefault(); tryMove(1,0); }
-    else if (ev.key === " "){ ev.preventDefault(); // attack in place = wait, but if adjacent enemy? keep simple
-      // Try attack any adjacent enemy (priority order)
-      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-      for (const [dx,dy] of dirs){
-        const e = enemyAt(state.player.x+dx, state.player.y+dy);
-        if (e){ attackEnemy(e); endTurn(); return; }
+  // ---------- FOV ----------
+  function computeFov(){
+    state.vis.fill(0);
+    const r = 7;
+    for(let dy=-r; dy<=r; dy++){
+      for(let dx=-r; dx<=r; dx++){
+        const x = state.player.x + dx, y = state.player.y + dy;
+        if(!inBounds(x,y)) continue;
+        if(dx*dx + dy*dy > r*r) continue;
+        // simple LOS: step from player to target (Bresenham)
+        if(hasLineOfSight(state.player.x, state.player.y, x, y)){
+          state.vis[idx(x,y)] = 1;
+          state.seen[idx(x,y)] = 1;
+        }
       }
-      log("No adjacent enemy. (Space does nothing)");
     }
-    else if (ev.key.toLowerCase()==="n"){ ev.preventDefault(); nextFloor(); }
+  }
+  function hasLineOfSight(x0,y0,x1,y1){
+    let dx = Math.abs(x1-x0), sx = x0 < x1 ? 1 : -1;
+    let dy = -Math.abs(y1-y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    let x=x0, y=y0;
+    for(;;){
+      if(x===x1 && y===y1) return true;
+      // allow target even if wall; block beyond
+      if(!(x===x0 && y===y0) && state.map[idx(x,y)]===0) return false;
+      const e2 = 2*err;
+      if(e2 >= dy){ err += dy; x += sx; }
+      if(e2 <= dx){ err += dx; y += sy; }
+      if(!inBounds(x,y)) return false;
+    }
   }
 
-  document.addEventListener('keydown', keyHandler, {passive:false});
+  // ---------- Logging ----------
+  const LOG_MAX = 60;
+  function addLog(msg){
+    const d = document.createElement("div");
+    d.textContent = msg;
+    logLines.prepend(d);
+    // trim
+    while(logLines.children.length > LOG_MAX) logLines.lastChild.remove();
+  }
 
-  // Prevent iOS double-tap zoom in the app
-  document.addEventListener('dblclick', (e)=>{ e.preventDefault(); }, {passive:false});
+  // ---------- Render ----------
+  function resizeCanvasToDisplay(){
+    const rect = cv.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const w = Math.floor(rect.width * dpr);
+    const h = Math.floor(rect.height * dpr);
+    if(cv.width !== w || cv.height !== h){
+      cv.width = w; cv.height = h;
+    }
+  }
 
-  // iPhone-friendly controls: swipe to move, tap to wait (on the map)
-  let touchStart = null;
-  let pinchStartDist = null;
-  let pinchStartZoom = null;
-  const dist2 = (t1,t2)=>Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-  canvas.addEventListener('touchstart', (e)=>{
-    if (!state) return;
+  function render(){
+    if(!state) return;
+    resizeCanvasToDisplay();
 
-    // Pinch start
-    if (e.touches.length === 2){
-      pinchStartDist = dist2(e.touches[0], e.touches[1]);
-      pinchStartZoom = zoom;
-      touchStart = null;
-      e.preventDefault();
-      return;
+    const wpx = cv.width, hpx = cv.height;
+    ctx.clearRect(0,0,wpx,hpx);
+
+    // base tile size to show whole map at zoom=1 (fit shorter side)
+    const base = Math.min(wpx / W, hpx / H);
+    const ts = base * state.zoom;
+
+    // camera center on player
+    const viewW = wpx / ts;
+    const viewH = hpx / ts;
+    let ox = state.player.x + 0.5 - viewW/2;
+    let oy = state.player.y + 0.5 - viewH/2;
+    ox = clamp(ox, 0, W - viewW);
+    oy = clamp(oy, 0, H - viewH);
+
+    // draw tiles
+    const x0 = Math.floor(ox), y0 = Math.floor(oy);
+    const x1 = Math.ceil(ox + viewW), y1 = Math.ceil(oy + viewH);
+
+    // background
+    ctx.fillStyle = "#070a10";
+    ctx.fillRect(0,0,wpx,hpx);
+
+    // grid & floors
+    for(let y=y0; y<=y1; y++){
+      for(let x=x0; x<=x1; x++){
+        if(!inBounds(x,y)) continue;
+        const i = idx(x,y);
+        const seen = state.seen[i]===1;
+        if(!seen) continue;
+        const vis = state.vis[i]===1;
+
+        const px = (x-ox)*ts;
+        const py = (y-oy)*ts;
+
+        if(state.map[i]===1){
+          ctx.fillStyle = vis ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)";
+          ctx.fillRect(px,py,ts,ts);
+        }else{
+          ctx.fillStyle = vis ? "rgba(30,40,70,0.22)" : "rgba(20,25,40,0.18)";
+          ctx.fillRect(px,py,ts,ts);
+        }
+        // grid line
+        ctx.strokeStyle = "rgba(255,255,255,0.07)";
+        ctx.lineWidth = Math.max(1, ts*0.04);
+        ctx.strokeRect(px,py,ts,ts);
+      }
     }
 
-    // Swipe/tap start
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    touchStart = { x: t.clientX, y: t.clientY };
-    e.preventDefault();
-  }, {passive:false});
+    // exit
+    if(state.seen[idx(state.exit.x,state.exit.y)]){
+      drawGlyph(state.exit.x, state.exit.y, "⇣", "rgba(255,215,120,.95)", ox, oy, ts);
+    }
 
-  // Pinch move (zoom)
-  canvas.addEventListener('touchmove', (e)=>{
-    if (!state) return;
-    if (e.touches.length === 2 && pinchStartDist){
-      const d = dist2(e.touches[0], e.touches[1]);
-      const ratio = d / pinchStartDist;
-      zoom = clamp(pinchStartZoom * ratio, ZOOM_MIN, ZOOM_MAX);
+    // enemies
+    for(const e of state.enemies){
+      if(state.vis[idx(e.x,e.y)]){
+        drawGlyph(e.x,e.y, "☠️", "rgba(255,255,255,1)", ox, oy, ts);
+      }else if(state.seen[idx(e.x,e.y)]){
+        drawGlyph(e.x,e.y, "☠️", "rgba(255,255,255,.35)", ox, oy, ts);
+      }
+    }
+
+    // player
+    drawGlyph(state.player.x, state.player.y, "😌", "rgba(255,255,255,1)", ox, oy, ts);
+
+    // vignette
+    const g = ctx.createRadialGradient(wpx/2,hpx/2, Math.min(wpx,hpx)*0.25, wpx/2,hpx/2, Math.min(wpx,hpx)*0.72);
+    g.addColorStop(0,"rgba(0,0,0,0)");
+    g.addColorStop(1,"rgba(0,0,0,0.55)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,wpx,hpx);
+  }
+
+  function drawGlyph(x,y, ch, fill, ox, oy, ts){
+    const px = (x-ox)*ts + ts/2;
+    const py = (y-oy)*ts + ts/2;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `${Math.max(12, ts*0.8)}px system-ui, "Apple Color Emoji","Segoe UI Emoji"`;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = fill;
+    ctx.fillText(ch, px, py);
+    ctx.restore();
+  }
+
+  // ---------- Turn / Combat ----------
+  function enemyAt(x,y){
+    return state.enemies.find(e => e.x===x && e.y===y);
+  }
+  function stepTurn(){
+    // enemies adjacent hit
+    for(const e of state.enemies){
+      if(Math.abs(e.x-state.player.x)+Math.abs(e.y-state.player.y)===1){
+        state.hp = Math.max(0, state.hp - 1);
+        addLog(`Enemy hits you for 1. (HP ${state.hp})`);
+        if(state.hp<=0){
+          addLog("You died. Tap New Run.");
+        }
+      }
+    }
+    state.turn++;
+  }
+
+  function tryMove(dx,dy){
+    if(!state || state.hp<=0) return;
+    const nx = state.player.x + dx, ny = state.player.y + dy;
+    state.lastMoveDir = {x:dx,y:dy};
+
+    const en = enemyAt(nx,ny);
+    if(en){
+      en.hp -= state.atk;
+      addLog(`You hit enemy for ${state.atk}. (enemy HP ${Math.max(0,en.hp)})`);
+      if(en.hp<=0){
+        state.enemies = state.enemies.filter(e=>e!==en);
+        addLog("Enemy defeated.");
+        // tiny level up chance
+        if(Math.random()<0.35){
+          state.maxHp += 1;
+          state.hp += 1;
+          addLog(`Level up-ish: +MaxHP. (HP ${state.hp}/${state.maxHp})`);
+        }
+      }
+      stepTurn();
+      computeFov();
+      syncUI();
       render();
-      e.preventDefault();
-    }
-  }, {passive:false});
-
-  canvas.addEventListener('touchend', (e)=>{
-    if (!state) return;
-
-    // End pinch
-    if (pinchStartDist && e.touches.length < 2){
-      pinchStartDist = null;
-      pinchStartZoom = null;
+      return;
     }
 
-    // If pinch was active, don't treat as swipe/tap
-    if (!touchStart) return;
+    if(!isFloor(nx,ny)){
+      addLog("Bumped into a wall.");
+      render(); // no state change but keep responsive
+      return;
+    }
 
-    const t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : null;
-    if (!t) return;
-    const dx = t.clientX - touchStart.x;
-    const dy = t.clientY - touchStart.y;
-    touchStart = null;
+    state.player.x = nx; state.player.y = ny;
 
-    const ax = Math.abs(dx), ay = Math.abs(dy);
-    const SWIPE = 28;   // px
-    const TAP = 10;     // px
+    // exit?
+    if(nx===state.exit.x && ny===state.exit.y){
+      addLog("You found the exit! Tap Next Floor.");
+    }
 
-    if (ax < TAP && ay < TAP){
-      // tap = wait
+    stepTurn();
+    computeFov();
+    syncUI();
+    render();
+  }
+
+  function waitTurn(){
+    if(!state || state.hp<=0) return;
+    addLog("Waited.");
+    stepTurn();
+    computeFov();
+    syncUI();
+    render();
+  }
+
+  // ---------- UI sync ----------
+  function syncUI(){
+    pillFloor.textContent = `FLOOR: ${state.floor}`;
+    pillHp.textContent = `HP: ${state.hp}/${state.maxHp}`;
+    pillAtk.textContent = `ATK: ${state.atk}`;
+    pillSeed.textContent = `SEED: ${state.seed ? state.seed.slice(0,10) + (state.seed.length>10?"…":"") : "-"}`;
+    pillSeed.title = state.seed || "";
+  }
+
+  // ---------- Save/Load/Export ----------
+  function pack(){
+    return {
+      seed: state.seed,
+      floor: state.floor,
+      atk: state.atk,
+      maxHp: state.maxHp,
+      hp: state.hp,
+      zoom: state.zoom,
+      turn: state.turn,
+      player: state.player,
+      exit: state.exit,
+      enemies: state.enemies,
+      map: Array.from(state.map),
+      seen: Array.from(state.seen),
+    };
+  }
+  function unpack(obj){
+    const s = newState(obj.seed || "");
+    s.floor = obj.floor||1;
+    s.atk = obj.atk||2;
+    s.maxHp = obj.maxHp||10;
+    s.hp = obj.hp||s.maxHp;
+    s.zoom = obj.zoom||1;
+    s.turn = obj.turn||0;
+    s.player = obj.player||{x:1,y:1};
+    s.exit = obj.exit||{x:1,y:1};
+    s.enemies = Array.isArray(obj.enemies)? obj.enemies : [];
+    if(Array.isArray(obj.map) && obj.map.length===W*H) s.map = Uint8Array.from(obj.map);
+    if(Array.isArray(obj.seen) && obj.seen.length===W*H) s.seen = Uint8Array.from(obj.seen);
+    s.vis = new Uint8Array(W*H);
+    state = s;
+    computeFov();
+    syncUI();
+    render();
+    addLog("Loaded.");
+  }
+
+  function saveLocal(){
+    try{
+      localStorage.setItem("bs_rogue_save", JSON.stringify(pack()));
+      addLog("Saved.");
+    }catch(e){
+      addLog("Save failed.");
+    }
+  }
+  function loadLocal(){
+    try{
+      const s = localStorage.getItem("bs_rogue_save");
+      if(!s){ addLog("No save found."); return; }
+      unpack(JSON.parse(s));
+    }catch(e){
+      addLog("Load failed.");
+    }
+  }
+  function exportCode(){
+    const txt = btoa(unescape(encodeURIComponent(JSON.stringify(pack()))));
+    navigator.clipboard?.writeText(txt).catch(()=>{});
+    addLog("Exported code (copied if you paste it somewhere).");
+    return txt;
+  }
+  function importCode(){
+    const txt = prompt("Paste Export Code:");
+    if(!txt) return;
+    try{
+      const json = decodeURIComponent(escape(atob(txt.trim())));
+      unpack(JSON.parse(json));
+      addLog("Imported code.");
+    }catch(e){
+      addLog("Import failed.");
+    }
+  }
+
+  // ---------- Input ----------
+  // Keyboard
+  window.addEventListener("keydown", (e)=>{
+    const k = e.key.toLowerCase();
+    if(k==="arrowup"||k==="w") tryMove(0,-1);
+    else if(k==="arrowdown"||k==="s") tryMove(0,1);
+    else if(k==="arrowleft"||k==="a") tryMove(-1,0);
+    else if(k==="arrowright"||k==="d") tryMove(1,0);
+    else if(k===" "){ e.preventDefault(); // attack = move into enemy; space = wait
       waitTurn();
-      e.preventDefault();
+    }else if(k==="n"){
+      nextFloor();
+    }
+  });
+
+  // Tap on canvas = wait
+  cv.addEventListener("pointerup", (e)=>{
+    // if it was pinch/drag, ignore
+    if(pointerState.moved) { pointerState.moved=false; return; }
+    waitTurn();
+  });
+
+  // Swipe + pinch zoom on canvas
+  const pointerState = {
+    active: new Map(), // id -> {x,y}
+    moved:false,
+    startCenter:null,
+    startDist:0,
+    startZoom:1,
+    lastCenter:null
+  };
+
+  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+  function center(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+
+  cv.addEventListener("pointerdown", (e)=>{
+    cv.setPointerCapture(e.pointerId);
+    pointerState.active.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    pointerState.moved = false;
+
+    if(pointerState.active.size===2){
+      const [p1,p2] = Array.from(pointerState.active.values());
+      pointerState.startCenter = center(p1,p2);
+      pointerState.lastCenter = pointerState.startCenter;
+      pointerState.startDist = dist(p1,p2);
+      pointerState.startZoom = state.zoom;
+    }
+  });
+
+  cv.addEventListener("pointermove", (e)=>{
+    if(!pointerState.active.has(e.pointerId)) return;
+    const prev = pointerState.active.get(e.pointerId);
+    const cur = {x:e.clientX, y:e.clientY};
+    pointerState.active.set(e.pointerId, cur);
+
+    if(pointerState.active.size===1){
+      // swipe detect: measure from initial down to now when released
+      const dx = cur.x - prev.x, dy = cur.y - prev.y;
+      if(Math.abs(dx) + Math.abs(dy) > 14) pointerState.moved = true;
+      // no continuous drag (game is turn-based) -> just mark moved
       return;
     }
 
-    if (ax < SWIPE && ay < SWIPE){
-      // tiny gesture: ignore
-      e.preventDefault();
-      return;
+    if(pointerState.active.size===2){
+      const [p1,p2] = Array.from(pointerState.active.values());
+      const c = center(p1,p2);
+      const d = dist(p1,p2);
+      if(pointerState.startDist > 0){
+        const scale = d / pointerState.startDist;
+        const nz = clamp(pointerState.startZoom * scale, 0.7, 3.0);
+        if(Math.abs(nz - state.zoom) > 0.001){
+          state.zoom = nz;
+          pointerState.moved = true;
+          render();
+        }
+      }
+      pointerState.lastCenter = c;
     }
-
-    if (ax >= ay){
-      if (dx > 0) tryMove(1,0); else tryMove(-1,0);
-    } else {
-      if (dy > 0) tryMove(0,1); else tryMove(0,-1);
-    }
-    e.preventDefault();
-  }, {passive:false});
-
-
-  // D-pad buttons (touch-friendly)
-  document.querySelectorAll('#dpad button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const m = btn.dataset.move;
-      if (m==="U") tryMove(0,-1);
-      else if (m==="D") tryMove(0,1);
-      else if (m==="L") tryMove(-1,0);
-      else if (m==="R") tryMove(1,0);
-      else if (m==="W") waitTurn();
-    });
   });
 
-  // Buttons
-  document.getElementById('btnNew').addEventListener('click', ()=> newRun());
-  document.getElementById('btnNext').addEventListener('click', nextFloor);
-  document.getElementById('btnSave').addEventListener('click', saveLocal);
-  document.getElementById('btnLoad').addEventListener('click', loadLocal);
-  document.getElementById('btnExport').addEventListener('click', exportCode);
-  document.getElementById('btnImport').addEventListener('click', importCode);
-  document.getElementById('btnHelp').addEventListener('click', ()=>{
-    log("Goal: explore, survive, reach exit ⏚.");
-    log("Move into enemies to attack. Enemies adjacent will hit you on their turn.");
-    log("Export/Import code = copy/paste sync between iPhone and iMac.");
+  cv.addEventListener("pointerup", (e)=>{
+    if(!pointerState.active.has(e.pointerId)) return;
+    const start = pointerState.active.get(e.pointerId);
+    const end = {x:e.clientX, y:e.clientY};
+    pointerState.active.delete(e.pointerId);
+
+    if(pointerState.active.size===0){
+      // swipe to move (only if not pinch)
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      if(Math.abs(dx) + Math.abs(dy) > 30){
+        // direction
+        if(Math.abs(dx) > Math.abs(dy)){
+          tryMove(dx>0?1:-1, 0);
+        }else{
+          tryMove(0, dy>0?1:-1);
+        }
+        pointerState.moved = true;
+      }
+    }
   });
 
-  // Start
-  newRun();
+  cv.addEventListener("pointercancel", (e)=>{
+    pointerState.active.delete(e.pointerId);
+  });
+
+  // ---------- Actions ----------
+  function nextFloor(){
+    if(!state) return;
+    state.floor += 1;
+    // small scaling
+    if(state.floor % 2 === 0) state.atk += 1;
+    state.maxHp += 1;
+    state.hp = Math.min(state.maxHp, state.hp + 2);
+    addLog(`Next floor: ${state.floor}`);
+    buildFloor();
+    syncUI();
+  }
+
+  btnNew.addEventListener("click", ()=>{
+    const seed = Math.random().toString(36).slice(2, 12);
+    state = newState(seed);
+    addLog("New run started.");
+    syncUI();
+    buildFloor();
+  });
+  btnNext.addEventListener("click", ()=> nextFloor() );
+  btnSave.addEventListener("click", ()=> saveLocal() );
+  btnLoad.addEventListener("click", ()=> loadLocal() );
+  btnExport.addEventListener("click", ()=> exportCode() );
+  btnImport.addEventListener("click", ()=> importCode() );
+  btnHelp.addEventListener("click", ()=>{
+    addLog("Goal: explore, survive, reach exit ⇣.");
+    addLog("Move into enemies to attack. Enemies adjacent will hit you on their turn.");
+    addLog("Export/Import code = copy/paste sync between iPhone and iMac.");
+    // open log automatically so it’s visible
+    logDetails.open = true;
+  });
+
+  // ---------- Boot ----------
+  function boot(){
+    // restore last save if exists (nice UX)
+    const s = localStorage.getItem("bs_rogue_save");
+    if(s){
+      try{ unpack(JSON.parse(s)); addLog("Restored last save."); }
+      catch(e){}
+    }
+    if(!state){
+      state = newState(Math.random().toString(36).slice(2, 12));
+      addLog("New run started.");
+      syncUI();
+      buildFloor();
+    }
+    // keep render stable on resize / rotation
+    window.addEventListener("resize", ()=> { render(); }, {passive:true});
+    window.addEventListener("orientationchange", ()=> setTimeout(render, 250), {passive:true});
+  }
+
+  boot();
 })();
 </script>
 </body>
