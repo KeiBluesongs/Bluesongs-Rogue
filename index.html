@@ -55,7 +55,7 @@
       <div class="pill" id="statFloor">FLOOR: 1</div>
       <div class="pill" id="statHP">HP: 10/10</div>
       <div class="pill" id="statATK">ATK: 2</div>
-      <div class="pill" id="statSeed">SEED: -</div>
+      <button class="pill pill-btn" id="btnCopySeed" type="button">Copy Seed</button>
     </div>
 
     <div id="log"></div>
@@ -145,7 +145,7 @@
     floor: document.getElementById('statFloor'),
     hp: document.getElementById('statHP'),
     atk: document.getElementById('statATK'),
-    seed: document.getElementById('statSeed'),
+    copySeed: document.getElementById('btnCopySeed'),
     log: document.getElementById('log'),
     code: document.getElementById('codeBox'),
     codeDetails: document.getElementById('codeDetails'),
@@ -278,9 +278,7 @@
   function updateHud(){
     ui.floor.textContent = `FLOOR: ${state.floor}`;
     ui.hp.textContent = `HP: ${state.player.hp}/${state.player.maxHp}`;
-    ui.atk.textContent = `ATK: ${state.player.atk}`;
-    ui.seed.textContent = `SEED: ${state.seed.slice(0,10)}…`;
-  }
+    ui.atk.textContent = `ATK: ${state.player.atk}`;  }
 
   function tryMove(dx,dy){
     if (!state) return;
@@ -682,6 +680,25 @@ function render(){
   });
 
   // Buttons
+  document.getElementById('btnCopySeed').addEventListener('click', async ()=>{
+    const seed = (state && state.seed) ? state.seed : "";
+    try{
+      await navigator.clipboard.writeText(seed);
+      log("Seed copied to clipboard.");
+    } catch(err){
+      // Fallback: show it in the code box and select it for manual copy.
+      const details = document.getElementById('codeDetails');
+      const ta = document.getElementById('codeBox');
+      if (details) details.open = true;
+      if (ta){
+        ta.value = seed;
+        ta.focus();
+        ta.select();
+      }
+      log("Couldn't access clipboard. Seed is selected in the box—copy it manually.");
+    }
+  });
+
   document.getElementById('btnNew').addEventListener('click', ()=> newRun());
   document.getElementById('btnNext').addEventListener('click', nextFloor);
   document.getElementById('btnSave').addEventListener('click', saveLocal);
